@@ -96,7 +96,9 @@ function alternatesFor(item) {
 /** Which of the item's known accessories the model's free-text list actually names. */
 function matchAccessories(item, spotted) {
   const known = item.accessories ?? [];
-  const list = Array.isArray(spotted) ? spotted.filter((s) => typeof s === 'string') : [];
+  const list = Array.isArray(spotted)
+    ? spotted.filter((s) => typeof s === 'string' && s.trim().length > 0)
+    : [];
   if (!known.length || !list.length) return [];
   return known.filter((accessory) => {
     const a = accessory.toLowerCase();
@@ -217,6 +219,9 @@ export async function recognizeWithVision({
     const data = await response.json();
     if (data.stop_reason === 'refusal') {
       throw new Error('The model declined to analyse this photo');
+    }
+    if (data.stop_reason === 'max_tokens') {
+      throw new Error("The model's response was truncated — try again or increase max_tokens");
     }
 
     const textBlock = data.content?.find((block) => block.type === 'text');

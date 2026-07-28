@@ -73,6 +73,11 @@ test('parseVisionResult only reports accessories the item actually has', () => {
   assert.ok(result.detectedAccessories.includes('Extra laces'));
 });
 
+test('parseVisionResult ignores blank spotted-accessory strings instead of matching everything', () => {
+  const result = parseVisionResult(rawResult({ detectedAccessories: ['', '   ', 'Original box'] }));
+  assert.deepEqual(result.detectedAccessories, ['Original box']);
+});
+
 test('parseVisionResult never returns the matched item as one of its own alternates', () => {
   const result = parseVisionResult(rawResult());
   assert.ok(result.alternates.every((alt) => alt.item.id !== result.item.id));
@@ -155,5 +160,21 @@ test('recognizeWithVision surfaces the API error message on a non-2xx response',
   await assert.rejects(
     recognizeWithVision({ apiKey: 'bad-key', photos: ['data:image/jpeg;base64,Zm9v'] }),
     /invalid x-api-key/,
+  );
+});
+
+test('recognizeWithVision surfaces a clear error when the response is truncated by max_tokens', async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"category":' }] }),
+  });
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await assert.rejects(
+    recognizeWithVision({ apiKey: 'sk-ant-test', photos: ['data:image/jpeg;base64,Zm9v'] }),
+    /truncated/,
   );
 });
