@@ -24,6 +24,7 @@ import {
   packingTips,
   priceItem,
   rankMarketplaces,
+  recognizeWithVision,
   scoreListing,
   sellOrDonate,
   seasonalityCurve,
@@ -50,11 +51,27 @@ const defaultState = () => ({
   garage: { active: false, scanned: [] },
   chat: [],
   selection: [],
-  prefs: { priority: 'balanced', tone: 'professional', notifications: true },
+  prefs: { priority: 'balanced', tone: 'professional', notifications: true, useVisionAI: false },
 });
 
 let state = load();
 let toastTimer = null;
+
+/**
+ * The user's own Anthropic API key, for the optional real-AI-recognition path.
+ *
+ * Session storage only, never `state` — the same reasoning as `pendingPhoto` below, except the
+ * risk here is a leaked credential rather than a blown quota. `save()` serialises the whole state
+ * object to localStorage, which persists indefinitely and can sync across devices; keeping the
+ * key out of it means it never outlives this browser tab.
+ */
+const VISION_KEY_STORAGE = 'resellai.visionApiKey';
+let visionApiKey = '';
+try {
+  visionApiKey = sessionStorage.getItem(VISION_KEY_STORAGE) ?? '';
+} catch {
+  /* private browsing — the key just won't survive a refresh */
+}
 
 /**
  * Uploaded photos, keyed by scan seed or inventory uid.
@@ -89,6 +106,9 @@ function load() {
     if (!raw) return defaultState();
 
     const restored = { ...defaultState(), ...JSON.parse(raw), view: 'home', current: null };
+    // `prefs` is nested, so the spread above replaces it wholesale with whatever was saved —
+    // a pref field added after a user's first save would otherwise never reach their state.
+    restored.prefs = { ...defaultState().prefs, ...restored.prefs };
 
     // The free plan grants five scans *a day*. Without this the persisted counter would make it
     // a lifetime limit, permanently gating the app after the fifth scan.
@@ -561,9 +581,23 @@ function startScan(itemId, options = {}) {
   const steps = [...document.querySelectorAll('.step')];
   steps.forEach((step, i) => setTimeout(() => step.classList.add('on'), 180 + i * 240));
 
-  setTimeout(() => {
+  setTimeout(async () => {
     const photoCount = photos.length || 3;
-    const recognition = analysePhoto({ seed, itemId: itemId ?? undefined, photoCount });
+    let recognition;
+
+    // Real recognition only makes sense against an actual uploaded photo, never the sample
+    // gallery or "surprise me" (there's no photo for the model to look at in those cases).
+    if (!itemId && photos.length && state.prefs.useVisionAI && visionApiKey) {
+      try {
+        recognition = await recognizeWithVision({ apiKey: visionApiKey, photos, seed, photoCount });
+      } catch (error) {
+        toast(`Real AI recognition failed, used the built-in simulator instead — ${error.message}`);
+      }
+    }
+
+    if (!recognition) {
+      recognition = analysePhoto({ seed, itemId: itemId ?? undefined, photoCount });
+    }
 
     if (photos.length) photoStore.set(seed, photos);
 
@@ -640,7 +674,9 @@ function viewResult() {
   return `
     <div class="row-between" style="margin: 8px 0 14px;">
       <button class="btn btn-quiet btn-sm" data-act="go" data-arg="scan">‹ Back</button>
-      <span class="pill pill-indigo">Simulated recognition</span>
+      <span class="pill ${recognition.simulated === false ? 'pill-emerald' : 'pill-indigo'}">
+        ${recognition.simulated === false ? 'AI recognition' : 'Simulated recognition'}
+      </span>
     </div>
 
     ${thumbFor(item, state.current.photoKey, 'thumb-lg')}
@@ -1362,11 +1398,42 @@ function viewProfile() {
       </div>
     </div>
 
+    <div class="section-head"><h2>AI recognition</h2></div>
+    <div class="card">
+      <div class="row-between" style="padding:9px 0;">
+        <span class="col">
+          <span style="font-weight:620;font-size:14.5px;">Use real AI recognition</span>
+          <span class="tiny">Sends your photo to Claude instead of the built-in simulator</span>
+        </span>
+        <button class="switch" data-act="toggle-vision-ai" aria-checked="${state.prefs.useVisionAI}" role="switch" aria-label="Use real AI recognition"></button>
+      </div>
+      ${state.prefs.useVisionAI ? `
+        <div class="divider"></div>
+        <div class="col" style="gap:8px;padding:9px 0;">
+          <span class="tiny">
+            Bring your own Anthropic API key. It is sent directly from this browser to Anthropic's
+            API and kept only in this tab's session storage — never saved to disk or synced across
+            devices. Anyone with access to this browser tab could read it, so don't use a
+            production key.
+          </span>
+          <div class="row" style="gap:8px;">
+            <input type="password" id="vision-api-key" class="grow" placeholder="sk-ant-..." autocomplete="off" />
+            <button class="btn btn-sm" data-act="save-vision-key">Save</button>
+          </div>
+          <span class="tiny">
+            ${visionApiKey ? 'Key saved for this tab.' : 'No key set — scans fall back to simulated recognition.'}
+            ${visionApiKey ? '<button class="link" data-act="clear-vision-key" style="margin-left:8px;">Remove</button>' : ''}
+          </span>
+        </div>
+      ` : ''}
+    </div>
+
     <div class="section-head"><h2>About this prototype</h2></div>
     <div class="banner banner-indigo">
-      Item recognition is simulated — there is no vision model behind the camera. Everything
-      downstream is real: pricing, fees, shipping, marketplace ranking, and listing copy are all
-      computed by the engines in <code>src/engine/</code>, which are covered by unit tests.
+      Item recognition is simulated by default — there is no vision model behind the camera unless
+      you turn on real AI recognition above with your own API key. Everything downstream is real:
+      pricing, fees, shipping, marketplace ranking, and listing copy are all computed by the
+      engines in <code>src/engine/</code>, which are covered by unit tests.
     </div>
 
     <div style="margin-top:14px;">
@@ -1673,6 +1740,39 @@ const actions = {
 
   priority(arg) { state.prefs.priority = arg; save(); render(); },
   'default-tone'(arg) { state.prefs.tone = arg; save(); render(); },
+
+  'toggle-vision-ai'() {
+    state.prefs.useVisionAI = !state.prefs.useVisionAI;
+    save();
+    render();
+  },
+
+  'save-vision-key'() {
+    const value = ($('#vision-api-key')?.value ?? '').trim();
+    if (!value) {
+      toast('Enter an API key first.');
+      return;
+    }
+    visionApiKey = value;
+    try {
+      sessionStorage.setItem(VISION_KEY_STORAGE, value);
+    } catch {
+      /* private browsing — the key still works for this render, just won't survive a refresh */
+    }
+    toast('Key saved for this browser tab.');
+    render();
+  },
+
+  'clear-vision-key'() {
+    visionApiKey = '';
+    try {
+      sessionStorage.removeItem(VISION_KEY_STORAGE);
+    } catch {
+      /* nothing to clear */
+    }
+    toast('Key removed.');
+    render();
+  },
 
   upgrade() {
     state.plan = isPro() ? 'free' : 'pro';

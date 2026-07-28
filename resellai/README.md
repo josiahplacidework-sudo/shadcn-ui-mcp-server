@@ -15,7 +15,7 @@ Requires Node.js 18 or newer.
 ```bash
 cd resellai
 npm run serve     # http://localhost:4173
-npm test          # 94 unit tests over the pricing, profit, listing, and offer engines
+npm test          # 107 unit tests over the pricing, profit, listing, offer, and vision engines
 npm run build     # bundles everything into dist/resellai.html
 ```
 
@@ -23,16 +23,27 @@ npm run build     # bundles everything into dist/resellai.html
 
 The honest boundary matters, because a resale app that guesses at prices is worse than useless.
 
-**Simulated** — item recognition. There is no vision model behind the camera. Picking a sample
-item resolves deterministically to a catalog entry, and every recognition result is flagged
-`simulated: true` so the UI can say so out loud. The comps in
+**Simulated by default** — item recognition. There is no vision model behind the camera unless you
+turn one on (see below). Picking a sample item resolves deterministically to a catalog entry, and
+every recognition result is flagged `simulated: true` so the UI can say so out loud. The comps in
 [`src/data/catalog.js`](src/data/catalog.js) are representative rather than live.
 
-**Real** — everything downstream. Given an item, a condition, and a set of comps, the price
-ladder, marketplace fees, shipping estimates, platform ranking, listing copy, quality score, and
-bundle analysis are all genuinely computed, and they are covered by unit tests. Swapping the
-simulated recogniser and the static comps for a vision model and a live sold-listings feed would
-leave the rest of the engine intact.
+**Real, opt-in** — vision recognition. Toggle "Use real AI recognition" in Profile and paste your
+own Anthropic API key, and an uploaded photo is sent to `claude-opus-5` for actual identification
+(via [`src/engine/vision.js`](src/engine/vision.js)) instead of the deterministic simulator. The
+key lives only in this browser tab's `sessionStorage` — never in the `localStorage` blob the rest
+of the app's state is saved to, and never sent anywhere but directly to Anthropic's API from your
+own browser. Because the pricing engine only has comps for the fixed catalog, the model is asked
+to match the photo to the closest catalog entry; a scan without a good match still gets priced,
+just against the nearest category's comps. Any failure (no key, network error, a declined request)
+falls back to the simulator with a toast explaining why. There's no server component here — this
+is inherent to a client-only prototype with a key you provide, not something a production app
+would do with your credentials.
+
+**Real** — everything downstream of recognition. Given an item, a condition, and a set of comps,
+the price ladder, marketplace fees, shipping estimates, platform ranking, listing copy, quality
+score, and bundle analysis are all genuinely computed, and they are covered by unit tests. This is
+true whether the item came from the simulator or the real vision path above.
 
 ## How the pricing works
 
@@ -87,6 +98,7 @@ resellai/
 │       ├── marketplaces.js  Fee models, eligibility, category fit, realization
 │       ├── profit.js        Net proceeds and the ranking engine
 │       ├── recognition.js   Simulated vision, condition, missing-angle hints
+│       ├── vision.js        Real, opt-in recognition via the Claude API (BYO key)
 │       ├── listing.js       Title, description, keywords, specifics, tones
 │       ├── quality.js       Listing score out of 100 and ranked suggestions
 │       ├── bundle.js        Bundle versus separate listings

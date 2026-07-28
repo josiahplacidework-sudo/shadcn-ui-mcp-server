@@ -20,7 +20,7 @@ const ENTRY = resolve(root, 'app/app.js');
 
 const IMPORT_RE = /^import\s+\{([\s\S]*?)\}\s+from\s+['"](.+?)['"];?\s*$/gm;
 const EXPORT_STAR_RE = /^export\s+\*\s+from\s+['"](.+?)['"];?\s*$/gm;
-const EXPORT_DECL_RE = /^export\s+(?:async\s+)?(function|const|let|class)\s+(\w+)/gm;
+const EXPORT_DECL_RE = /^export\s+(async\s+)?(function|const|let|class)\s+(\w+)/gm;
 /** `export { a, b };` — a list of already-declared local bindings. */
 const EXPORT_LIST_RE = /^export\s+\{([^}]*)\}\s*;?\s*$/gm;
 const BARE_IMPORT_RE = /^import\s+['"](.+?)['"];?\s*$/gm;
@@ -77,7 +77,7 @@ function collect(absolutePath) {
   }
 
   for (const match of source.matchAll(EXPORT_DECL_RE)) {
-    exports.add(match[2]);
+    exports.add(match[3]);
   }
 
   for (const match of source.matchAll(EXPORT_LIST_RE)) {
@@ -93,7 +93,7 @@ function collect(absolutePath) {
     .replace(IMPORT_RE, '')
     .replace(EXPORT_STAR_RE, '')
     .replace(EXPORT_LIST_RE, '')
-    .replace(EXPORT_DECL_RE, (_, keyword, name) => `${keyword} ${name}`);
+    .replace(EXPORT_DECL_RE, (_, asyncKeyword, keyword, name) => `${asyncKeyword ?? ''}${keyword} ${name}`);
 
   // Insert only after every dependency has been inserted, so Map insertion order is a valid
   // initialisation order for the emitted bundle.

@@ -793,7 +793,7 @@ button { font-family: inherit; cursor: pointer; }
 .banner-amber { background: var(--amber-soft); color: var(--ink-banner-amber); border-color: rgba(245,158,11,0.25); }
 .banner-emerald { background: var(--emerald-soft); color: var(--profit); border-color: rgba(16,185,129,0.22); }
 
-input[type='text'], textarea, select {
+input[type='text'], input[type='password'], textarea, select {
   width: 100%;
   font-family: inherit;
   font-size: 14px;
@@ -803,7 +803,7 @@ input[type='text'], textarea, select {
   background: var(--card);
   color: var(--ink);
 }
-input[type='text']:focus, textarea:focus { outline: 2px solid var(--indigo); outline-offset: -1px; }
+input[type='text']:focus, input[type='password']:focus, textarea:focus { outline: 2px solid var(--indigo); outline-offset: -1px; }
 
 :focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; border-radius: 6px; }
 
