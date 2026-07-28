@@ -10,10 +10,12 @@ the core loop it describes: **scan → identify → price → profit → marketp
 
 No dependencies, no build step, no install.
 
+Requires Node.js 18 or newer.
+
 ```bash
 cd resellai
 npm run serve     # http://localhost:4173
-npm test          # 86 unit tests over the pricing, profit, listing, and offer engines
+npm test          # 94 unit tests over the pricing, profit, listing, and offer engines
 npm run build     # bundles everything into dist/resellai.html
 ```
 

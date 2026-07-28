@@ -44,6 +44,7 @@ const defaultState = () => ({
   theme: null,
   plan: 'free',
   scansToday: 0,
+  scanDay: today(),
   inventory: seedInventory(),
   current: null,
   garage: { active: false, scanned: [] },
@@ -64,18 +65,50 @@ let toastTimer = null;
  */
 const photoStore = new Map();
 
+/**
+ * Preview shown during the analysis animation.
+ *
+ * Module-level rather than on `state` for the same reason as `photoStore`: `save()` serialises
+ * the whole state object, so parking a multi-megabyte data URL there would blow the quota and
+ * take the rest of the session's state with it.
+ */
+let pendingPhoto = null;
+
 function photosFor(key) {
   return photoStore.get(key) ?? [];
+}
+
+/** Local calendar day, used to expire the free plan's daily scan allowance. */
+function today() {
+  return new Date().toDateString();
 }
 
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
-    return { ...defaultState(), ...JSON.parse(raw), view: 'home', current: null };
+
+    const restored = { ...defaultState(), ...JSON.parse(raw), view: 'home', current: null };
+
+    // The free plan grants five scans *a day*. Without this the persisted counter would make it
+    // a lifetime limit, permanently gating the app after the fifth scan.
+    if (restored.scanDay !== today()) {
+      restored.scanDay = today();
+      restored.scansToday = 0;
+    }
+    return restored;
   } catch {
     return defaultState();
   }
+}
+
+/** Count a scan against today's allowance, rolling over if the day changed mid-session. */
+function recordScan() {
+  if (state.scanDay !== today()) {
+    state.scanDay = today();
+    state.scansToday = 0;
+  }
+  state.scansToday += 1;
 }
 
 function save() {
@@ -483,8 +516,8 @@ function viewAnalysing() {
       <span class="scanline"></span>
       <span class="corner tl"></span><span class="corner tr"></span>
       <span class="corner bl"></span><span class="corner br"></span>
-      ${state.pendingPhoto
-        ? `<img src="${state.pendingPhoto}" alt="" style="width:100%;height:100%;object-fit:cover;opacity:0.85;" />`
+      ${pendingPhoto
+        ? `<img src="${pendingPhoto}" alt="" style="width:100%;height:100%;object-fit:cover;opacity:0.85;" />`
         : `<span class="glyph">${state.pendingGlyph ?? '📦'}</span>`}
     </div>
     <div class="card" style="margin-top:18px;">
@@ -515,7 +548,7 @@ function startScan(itemId, options = {}) {
   const item = itemId ? getItem(itemId) : null;
 
   state.pendingGlyph = item ? glyphOf(item) : '🖼️';
-  state.pendingPhoto = photos[0] ?? null;
+  pendingPhoto = photos[0] ?? null;
   state.view = 'analysing';
   render();
 
@@ -539,7 +572,7 @@ function startScan(itemId, options = {}) {
       tone: state.prefs.tone,
       room: categoryOf(recognition.item).room,
     };
-    state.scansToday += 1;
+    recordScan();
     state.view = 'result';
 
     if (state.garage.active) {
@@ -1892,7 +1925,7 @@ function openReceiptSheet(itemId) {
         </label>
         <label class="col" style="gap:6px;">
           <span class="eyebrow">Purchase date</span>
-          <input type="text" id="receipt-date" placeholder="YYYY-MM-DD" value="${existing?.date ?? ''}" />
+          <input type="text" id="receipt-date" placeholder="YYYY-MM-DD" value="${esc(existing?.date ?? '')}" />
         </label>
       </div>
 

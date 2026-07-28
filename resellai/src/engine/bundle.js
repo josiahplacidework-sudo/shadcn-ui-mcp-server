@@ -64,7 +64,9 @@ export function analyseBundle(entries) {
   const anchor = priced.reduce((best, p) => (p.fair > best.fair ? p : best), priced[0]);
   const bundleRanked = rankMarketplaces(anchor.item, bundlePrice, { condition: anchor.condition });
   const bundleBest = bundleRanked[0];
-  const bundleNet = bundleBest ? bundleBest.profit.net : bundlePrice;
+  // Falling back to the gross price would count fees as profit, making a bundle look best in
+  // exactly the case where nothing can be sold at all. Match the per-item fallback of 0.
+  const bundleNet = bundleBest ? bundleBest.profit.net : 0;
   const bundleDays = bundleBest
     ? Math.round(expectedDays(bundleBest.marketplace, anchor.item, 'fair') * (1.15 - cohesion * 0.35))
     : Math.round(separateDays * 0.6);
@@ -107,8 +109,16 @@ export function analyseBundle(entries) {
 
 function rationale({ recommendBundle, netGiveUp, daysSaved, hoursSaved, lowValueCount, cohesion, priced }) {
   if (recommendBundle) {
+    // netGiveUp is negative when bundling actually nets more — one fee and one shipment instead
+    // of several. Reporting its absolute value would tell the seller they are losing money on
+    // the option being recommended to them.
+    const money =
+      netGiveUp > 0
+        ? `gives up about $${netGiveUp.toFixed(0)}`
+        : `nets about $${Math.abs(netGiveUp).toFixed(0)} more`;
+
     const parts = [
-      `Bundling gives up about $${Math.abs(netGiveUp).toFixed(0)} but sells roughly ${daysSaved} days sooner and saves ${hoursSaved.toFixed(1)} hours of listing work.`,
+      `Bundling ${money} and sells roughly ${daysSaved} days sooner, saving ${hoursSaved.toFixed(1)} hours of listing work.`,
     ];
     if (lowValueCount) {
       parts.push(
@@ -121,7 +131,9 @@ function rationale({ recommendBundle, netGiveUp, daysSaved, hoursSaved, lowValue
   if (cohesion < 0.75) {
     return 'These items appeal to different buyers, so a bundle would narrow your audience without speeding up the sale. List them separately.';
   }
-  return `Selling separately nets about $${Math.abs(netGiveUp).toFixed(0)} more, and each of these ${priced.length} items is valuable enough to justify its own listing.`;
+  return netGiveUp >= 0
+    ? `Selling separately nets about $${netGiveUp.toFixed(0)} more, and each of these ${priced.length} items is valuable enough to justify its own listing.`
+    : `Bundling would net about $${Math.abs(netGiveUp).toFixed(0)} more, but these ${priced.length} items appeal to different buyers, so separate listings will each find their own.`;
 }
 
 function bundleTitle(priced) {

@@ -148,6 +148,13 @@ const bodyMatch = html.match(/<body>([\s\S]*?)<\/body>/);
 if (!bodyMatch) throw new Error('app/index.html: could not find the <body> element');
 const markup = bodyMatch[1].replace(/\s*<script[\s\S]*?<\/script>\s*/g, '\n');
 
+// Deliberately a document *fragment*, not a full HTML document.
+//
+// The output is published as a Claude Artifact, and that publisher supplies its own
+// `<!doctype html><html><head>…</head><body>` wrapper. Emitting our own doctype and html/head/
+// body here would nest a second document inside the first. Standards mode comes from the host
+// wrapper. To open the bundle directly in a browser instead, use `npm run serve`, which serves
+// app/index.html — a complete document with its own doctype.
 const page = `<title>ResellAI — Take one photo. Find out what it is worth.</title>
 <style>
 ${css}

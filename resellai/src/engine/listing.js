@@ -131,6 +131,10 @@ function buildDescription({ item, cond, includedAccessories, tone, shipping, mar
   lines.push('SHIPPING');
   if (!shipping.shippable) {
     lines.push('Local pickup only — this item is too large to ship economically.');
+  } else if (marketplace?.shipping === 'none') {
+    // Shippable, but the chosen marketplace is pickup-only — promising tracked delivery here
+    // would contradict both the marketplace and the recommendation copy.
+    lines.push('Local pickup only — cash or instant transfer on collection.');
   } else if (marketplace?.shipping === 'buyer') {
     lines.push(`Ships in a ${shipping.boxLabel.toLowerCase()} via ${shipping.carrier.name}. Buyer pays shipping.`);
   } else {

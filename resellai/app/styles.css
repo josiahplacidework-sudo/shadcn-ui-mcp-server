@@ -201,6 +201,25 @@ body {
 }
 .status-bar .dots { letter-spacing: 2px; opacity: 0.75; }
 
+/* Battery drawn in CSS rather than set as a glyph — the Apple symbol for it lives in a
+   private-use codepoint that renders as tofu on every non-Apple platform. */
+.status-bar .battery { display: inline-flex; align-items: center; gap: 5px; }
+.status-bar .battery::after {
+  content: '';
+  width: 22px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.9;
+  background:
+    linear-gradient(currentColor 0 0) padding-box no-repeat,
+    linear-gradient(currentColor 0 0) border-box no-repeat;
+  background-size: 100% 100%, 0 0;
+  box-shadow: 2px 0 0 -0.5px currentColor;
+  padding: 1px;
+  background-clip: content-box;
+}
+
 .screen {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -369,7 +388,6 @@ button { font-family: inherit; cursor: pointer; }
 
 .scan-cta {
   width: 100%;
-  border: none;
   border-radius: var(--r-xl);
   padding: 22px;
   background: var(--card);

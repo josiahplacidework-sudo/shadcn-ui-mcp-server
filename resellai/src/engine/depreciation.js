@@ -77,7 +77,9 @@ export function analyseDepreciation(input) {
 }
 
 function ownership({ purchasePrice, purchaseDate, current, item }) {
-  if (!purchasePrice || !purchaseDate) return { known: false };
+  // `0` is a legitimate purchase price — gifts, hand-me-downs, and kerbside finds are common in
+  // resale — so only a missing price counts as unknown.
+  if (purchasePrice == null || !purchaseDate) return { known: false };
 
   const purchased = new Date(purchaseDate);
   if (Number.isNaN(purchased.getTime())) return { known: false };

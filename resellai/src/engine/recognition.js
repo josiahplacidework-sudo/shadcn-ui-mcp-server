@@ -101,8 +101,9 @@ const ANGLE_HINTS = {
 
 export function photoSuggestions(item, photoCount = 1) {
   const hints = ANGLE_HINTS[item.category] ?? ['Add a clean, well-lit photo against a plain background.'];
+  // No hints once there are enough photos — otherwise "Improve your photos" never goes away.
   const wanted = Math.max(0, 4 - photoCount);
-  return hints.slice(0, Math.max(1, wanted));
+  return hints.slice(0, wanted);
 }
 
 function clamp(value, min, max) {

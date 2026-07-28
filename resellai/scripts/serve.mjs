@@ -13,6 +13,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.PORT ?? 4173);
+// This server exposes every file under the project directory, so it binds to loopback unless
+// asked otherwise. Set HOST=0.0.0.0 deliberately when testing from a phone on the same network.
+const host = process.env.HOST ?? '127.0.0.1';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -51,6 +54,6 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { 'content-type': 'text/plain' }).end('Not found');
   }
-}).listen(port, () => {
+}).listen(port, host, () => {
   console.log(`ResellAI prototype running at http://localhost:${port}/`);
 });

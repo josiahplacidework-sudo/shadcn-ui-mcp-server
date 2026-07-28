@@ -306,3 +306,25 @@ test('toCsv handles an empty inventory', () => {
   const csv = toCsv([]);
   assert.equal(csv.trim().split('\r\n').length, 1);
 });
+
+// ---------------------------------------------------------------- review follow-ups
+
+test('an appreciating item still reports ownership when it was free', () => {
+  // $0 is a real purchase price in resale — gifts, hand-me-downs, kerbside finds.
+  const result = analyseDepreciation({
+    item: getItem('charizard-base'),
+    condition: 'excellent',
+    purchasePrice: 0,
+    purchaseDate: '2020-01-01',
+  });
+
+  assert.equal(result.known, true);
+  assert.equal(result.purchasePrice, 0);
+  assert.equal(result.retained, null, 'retained is undefined against a zero cost basis');
+  assert.ok(result.lost < 0, 'a free item is pure gain, not a loss');
+});
+
+test('a missing purchase price is still unknown', () => {
+  const result = analyseDepreciation({ item: getItem('ps5-disc'), purchaseDate: '2021-01-01' });
+  assert.equal(result.known, false);
+});

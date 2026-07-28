@@ -155,10 +155,12 @@ function leadWith(scored, metric, direction) {
 
   const best = metric(sorted[0]);
   // Within 1% on the chosen metric counts as a draw; prefer the better all-round option.
+  // The window is absolute rather than a percentage of `best`, because a negative best — a cheap
+  // item on a fee-heavy marketplace can net below zero — would otherwise put the threshold above
+  // the leader itself, excluding it from its own tie group and silently skipping the tie-break.
+  const window = Math.abs(best) * 0.01;
   const isTied = (entry) =>
-    direction === 'desc'
-      ? metric(entry) >= best * 0.99
-      : metric(entry) <= best * 1.01;
+    direction === 'desc' ? metric(entry) >= best - window : metric(entry) <= best + window;
 
   const tied = sorted.filter(isTied).sort((a, b) => b.score - a.score);
   const rest = sorted.filter((entry) => !isTied(entry));
