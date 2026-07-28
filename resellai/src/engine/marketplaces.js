@@ -225,6 +225,7 @@ export function eligibility(marketplace, item, condition = 'very-good') {
   return { eligible: true };
 }
 
+/** Every marketplace that will actually accept this item in this condition. */
 export function eligibleMarketplaces(item, condition = 'very-good') {
   return MARKETPLACES.filter((m) => eligibility(m, item, condition).eligible);
 }

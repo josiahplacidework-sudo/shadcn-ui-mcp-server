@@ -21,6 +21,7 @@ export function hashString(input) {
   return hash >>> 0;
 }
 
+/** Deterministic 0-1 value for a seed and salt, so a photo always grades the same way. */
 function pseudoRandom(seed, salt) {
   return (hashString(`${seed}:${salt}`) % 10000) / 10000;
 }

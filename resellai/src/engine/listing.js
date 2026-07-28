@@ -99,6 +99,7 @@ const CLOSERS = {
   luxury: 'Carefully packaged and dispatched with tracking.',
 };
 
+/** Assembles the description: opener, condition, details, contents, shipping, and closer. */
 function buildDescription({ item, cond, includedAccessories, tone, shipping, marketplace, price }) {
   const opener = (OPENERS[tone] ?? OPENERS.professional)(item, cond);
   const lines = [opener, ''];
@@ -154,6 +155,7 @@ function buildDescription({ item, cond, includedAccessories, tone, shipping, mar
   return lines.join('\n');
 }
 
+/** The condition blurb plus the reassurance buyers in this category look for. */
 function conditionSummary(item, cond) {
   const base = cond.blurb;
   const extra = {
@@ -168,6 +170,7 @@ function conditionSummary(item, cond) {
   return extra ? `${base} ${extra}` : base;
 }
 
+/** Scannable highlights for marketplaces that render a bullet list above the description. */
 function buildBullets(item, cond, includedAccessories, shipping) {
   const bullets = [
     `${cond.label} condition — ${cond.blurb.replace(/\.$/, '')}`,
@@ -191,6 +194,7 @@ function buildBullets(item, cond, includedAccessories, shipping) {
   return bullets;
 }
 
+/** Search terms drawn from the brand, name, tags, and attributes, de-duplicated. */
 function buildKeywords(item, cond) {
   const attrs = item.attributes ?? {};
   const words = new Set([
@@ -206,6 +210,7 @@ function buildKeywords(item, cond) {
   return [...words].slice(0, 18);
 }
 
+/** Lower-cased tags for the social-style marketplaces that use them. */
 function buildHashtags(item) {
   const source = [item.brand, ...(item.tags ?? []), item.category];
   const tags = source
@@ -214,6 +219,7 @@ function buildHashtags(item) {
   return [...new Set(tags)].slice(0, 8);
 }
 
+/** The structured attribute table marketplaces use to filter search results. */
 function buildSpecifics(item, cond, shipping) {
   const attributes = Object.fromEntries(
     Object.entries(item.attributes ?? {}).map(([key, value]) => [titleCase(key), value]),

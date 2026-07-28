@@ -18,6 +18,7 @@ const AFFINITY = [
   ['appliance', 'furniture'],
 ];
 
+/** How plausibly these categories belong in one listing — 1 is identical, lower is a stretch. */
 function affinityScore(categories) {
   const unique = [...new Set(categories)];
   if (unique.length === 1) return 1;
@@ -107,6 +108,7 @@ export function analyseBundle(entries) {
   };
 }
 
+/** Explains the recommendation in money, days, and hours of listing work. */
 function rationale({ recommendBundle, netGiveUp, daysSaved, hoursSaved, lowValueCount, cohesion, priced }) {
   if (recommendBundle) {
     // netGiveUp is negative when bundling actually nets more — one fee and one shipment instead
@@ -136,6 +138,7 @@ function rationale({ recommendBundle, netGiveUp, daysSaved, hoursSaved, lowValue
     : `Bundling would net about $${Math.abs(netGiveUp).toFixed(0)} more, but these ${priced.length} items appeal to different buyers, so separate listings will each find their own.`;
 }
 
+/** Names the lot after its common brand or category. */
 function bundleTitle(priced) {
   const brands = [...new Set(priced.map((p) => p.item.brand))];
   const categories = [...new Set(priced.map((p) => p.item.category))];

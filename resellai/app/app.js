@@ -204,6 +204,7 @@ function toast(message) {
 const isPro = () => state.plan === 'pro';
 const scansLeft = () => Math.max(0, FREE_SCAN_LIMIT - state.scansToday);
 
+/** An inventory row joined to its catalog item and freshly recalculated pricing. */
 function inventoryEntry(entry) {
   const item = getItem(entry.itemId);
   const pricing = priceItem(item, { condition: entry.condition, includedAccessories: entry.accessories });
@@ -217,6 +218,7 @@ function marketDrift(itemId) {
   return (seeded - 0.42) * 0.34; // roughly -14% … +20%
 }
 
+/** Unsold items whose value has moved enough to be worth telling the user about. */
 function priceAlerts() {
   return state.inventory
     .filter((entry) => entry.status !== 'sold')
@@ -278,6 +280,7 @@ const TABS = [
   { id: 'profile', icon: '👤', label: 'Profile' },
 ];
 
+/** Redraws the bottom bar, mapping sub-screens back to their owning tab. */
 function renderTabs() {
   const active = { analysing: 'scan', result: 'scan', listing: 'scan', garage: 'scan', bundle: 'inventory', negotiate: 'inventory', chat: 'home' }[state.view] ?? state.view;
 
@@ -392,6 +395,7 @@ function viewHome() {
   `;
 }
 
+/** A single price-movement card for the home screen. */
 function alertCard(alert) {
   const up = alert.drift > 0;
   return `
@@ -418,6 +422,7 @@ function greeting() {
   return 'Good evening';
 }
 
+/** The one-line status under an inventory row: sold for, listed on, or its room. */
 function statusLabel(entry) {
   if (entry.status === 'sold') return `Sold for ${money(entry.soldFor)}`;
   if (entry.status === 'listed') return `Listed on ${entry.listedOn.map((id) => getMarketplace(id)?.name ?? id).join(', ')}`;
@@ -817,6 +822,7 @@ function priorityLabel() {
   return { balanced: 'Balanced ⇄', profit: 'Most profit ⇄', speed: 'Fastest ⇄' }[state.prefs.priority];
 }
 
+/** The fee-by-fee breakdown from asking price down to net profit. */
 function profitCard(entry, pricing, tier) {
   const { profit } = entry;
   const lines = [
@@ -1802,6 +1808,7 @@ const actions = {
   'close-sheet'() { closeSheet(); },
 };
 
+/** Commits the active scan to inventory, carrying any uploaded photos across. */
 function saveCurrent(status, targets) {
   const { recognition, condition, accessories, tier, room, photoKey } = state.current;
   const pricing = currentPricing();

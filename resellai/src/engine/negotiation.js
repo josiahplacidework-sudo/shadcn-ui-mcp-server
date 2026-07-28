@@ -117,6 +117,7 @@ function reservationFor({ fairNet, quickNet, pressure }) {
   return Math.max(quickNet * 0.67, quickNet - band * overdue * 0.5);
 }
 
+/** Accept at or above the floor, counter within reach of it, decline a fishing expedition. */
 function decide({ offerNet, reservationNet, ratio }) {
   if (offerNet >= reservationNet) return 'accept';
   // A lowball under 45% of the asking price is not a negotiation, it is a fishing expedition.
@@ -125,6 +126,7 @@ function decide({ offerNet, reservationNet, ratio }) {
   return 'decline';
 }
 
+/** The seller-facing explanation: listing age, what the offer nets, and the gap to the floor. */
 function reasoningFor({ verdict, offer, offerNet, reservationNet, counterPrice, daysListed, typicalDays, ratio }) {
   const age =
     daysListed === 0
@@ -182,6 +184,7 @@ const REPLIES = {
   },
 };
 
+/** The message to send the buyer, in the seller's chosen tone. */
 function replyFor({ verdict, counterPrice, tone }) {
   const set = REPLIES[verdict] ?? REPLIES.decline;
   return (set[tone] ?? set.professional)(counterPrice);

@@ -46,6 +46,7 @@ export function scoreListing(input) {
   return { overall, parts, suggestions, grade: gradeFor(overall) };
 }
 
+/** Photo count against the six-photo mark where listings stop losing buyers. */
 function scorePhotos(photoCount) {
   const score = Math.round(Math.min(1, photoCount / IDEAL_PHOTOS) * 100);
   if (photoCount >= IDEAL_PHOTOS) return { score: 100, label: `${photoCount} photos` };
@@ -57,6 +58,7 @@ function scorePhotos(photoCount) {
   };
 }
 
+/** Penalises titles that are too short to match searches, or missing the brand. */
 function scoreTitle(title, item) {
   let score = 100;
   const suggestions = [];
@@ -81,6 +83,7 @@ function scoreTitle(title, item) {
   };
 }
 
+/** Rewards length, measurements, and the section structure buyers scan for. */
 function scoreDescription(description) {
   const length = description.length;
   const hasMeasurements = /\d+\s*(in|inch|"|cm|lb|kg|qt|mm)/i.test(description);
@@ -109,6 +112,7 @@ function scoreDescription(description) {
   };
 }
 
+/** Full marks inside the market band; distance from fair market costs points. */
 function scorePricing(price, pricing) {
   const { quick, patient, fair } = pricing.prices ?? pricing;
 
@@ -132,6 +136,7 @@ function scorePricing(price, pricing) {
   };
 }
 
+/** Undeclared accessories and thin item specifics both suppress search placement. */
 function scoreCompleteness(item, includedAccessories, listing) {
   const totalAccessories = item.accessories?.length ?? 0;
   const specifics = Object.keys(listing.specifics ?? {}).length;
@@ -158,6 +163,7 @@ function scoreCompleteness(item, includedAccessories, listing) {
   };
 }
 
+/** Word for the overall score, so the UI never shows a bare number. */
 function gradeFor(score) {
   if (score >= 90) return 'Excellent';
   if (score >= 75) return 'Strong';

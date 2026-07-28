@@ -76,6 +76,7 @@ export function analyseDepreciation(input) {
   };
 }
 
+/** Cost-of-ownership figures, available only once a receipt supplies price and date. */
 function ownership({ purchasePrice, purchaseDate, current, item }) {
   // `0` is a legitimate purchase price — gifts, hand-me-downs, and kerbside finds are common in
   // resale — so only a missing price counts as unknown.
@@ -101,6 +102,7 @@ function ownership({ purchasePrice, purchaseDate, current, item }) {
   };
 }
 
+/** Turns the monthly bleed into timing advice, never urging a sale on an appreciating item. */
 function recommend({ appreciating, monthlyChange, current, inSixMonths }) {
   if (appreciating) {
     return {

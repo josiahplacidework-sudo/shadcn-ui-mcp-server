@@ -145,6 +145,7 @@ export function priceItem(item, options = {}) {
   };
 }
 
+/** Guards the quick <= fair <= patient ordering, which rounding can otherwise invert. */
 function normaliseLadder(quick, fair, patient) {
   const q = Math.min(quick, fair);
   const p = Math.max(patient, fair);

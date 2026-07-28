@@ -35,6 +35,7 @@ function moduleId(absolutePath) {
   return relative(root, absolutePath).replace(/\\/g, '/');
 }
 
+/** Parses a module and its imports, inserting each one only after its dependencies. */
 function collect(absolutePath) {
   const id = moduleId(absolutePath);
   if (modules.has(id)) return id;
@@ -101,6 +102,7 @@ function collect(absolutePath) {
   return id;
 }
 
+/** Wraps a module as a registry entry whose exports later modules destructure. */
 function emit(module) {
   const bindings = module.imports
     .map(({ names, dep }) => `  const { ${names.join(', ')} } = __m[${JSON.stringify(dep)}];`)

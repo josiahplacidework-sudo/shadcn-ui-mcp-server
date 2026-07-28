@@ -167,6 +167,7 @@ function leadWith(scored, metric, direction) {
   return [...tied, ...rest];
 }
 
+/** The short labels shown against each marketplace — highest profit, fastest sale, and so on. */
 function badgesFor(entry, { bestNet, fastest }) {
   const badges = [];
   if (entry.profit.net === bestNet) badges.push('Highest profit');
@@ -176,6 +177,7 @@ function badgesFor(entry, { bestNet, fastest }) {
   return badges;
 }
 
+/** One sentence on why this marketplace landed where it did in the ranking. */
 function explain(entry, { bestNet, fastest, item }) {
   const { marketplace, profit, days, fit } = entry;
   const parts = [];

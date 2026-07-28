@@ -31,6 +31,7 @@ function mediaMailRate(weightLb) {
   return 4.13 + Math.max(0, Math.ceil(weightLb) - 1) * 0.68;
 }
 
+/** Cheapest sensible carrier for the item's weight and category. */
 function pickCarrier(item) {
   if (item.box === BOX.freight || item.localOnly) return CARRIERS.local;
   if (item.category === 'books') return CARRIERS.media;

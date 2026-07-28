@@ -338,6 +338,7 @@ export function getItem(id) {
   return CATALOG.find((item) => item.id === id);
 }
 
+/** Category metadata for an item, falling back to a generic entry for unknown categories. */
 export function categoryOf(item) {
   return CATEGORIES[item.category] ?? { label: item.category, glyph: '📦', room: 'Storage' };
 }
