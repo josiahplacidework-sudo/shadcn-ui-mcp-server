@@ -9,8 +9,11 @@
 import { CATALOG, CATEGORIES, categoryOf, getItem } from '../src/data/catalog.js';
 import {
   analyseBundle,
+  analyseDepreciation,
   analysePhoto,
+  COLUMNS,
   CONDITIONS,
+  evaluateOffer,
   eligibleMarketplaces,
   expectedDays,
   explainPrice,
@@ -24,6 +27,7 @@ import {
   scoreListing,
   sellOrDonate,
   seasonalityCurve,
+  toCsv,
   TONES,
 } from '../src/engine/index.js';
 
@@ -50,6 +54,19 @@ const defaultState = () => ({
 
 let state = load();
 let toastTimer = null;
+
+/**
+ * Uploaded photos, keyed by scan seed or inventory uid.
+ *
+ * Deliberately in memory only. Data URLs for a handful of phone photos run to several megabytes
+ * and would blow the localStorage quota on the first save, taking the rest of the session's
+ * state with it. Thumbnails fall back to the category glyph once a session ends.
+ */
+const photoStore = new Map();
+
+function photosFor(key) {
+  return photoStore.get(key) ?? [];
+}
 
 function load() {
   try {
@@ -117,6 +134,20 @@ const esc = (s) =>
 const pct = (n) => `${Math.round(n * 100)}%`;
 
 const glyphOf = (item) => categoryOf(item).glyph;
+
+/**
+ * Thumbnail markup for an item, using the user's own photo when they uploaded one.
+ * @param {string} [extraClass] e.g. 'thumb-lg'
+ */
+function thumbFor(item, key, extraClass = '') {
+  const photo = photosFor(key)[0];
+  const classes = `thumb ${extraClass}`.trim();
+
+  if (photo) {
+    return `<span class="${classes}" style="background-image:url('${photo}');background-size:cover;background-position:center;"></span>`;
+  }
+  return `<span class="${classes}" style="background:${tint(item)}">${glyphOf(item)}</span>`;
+}
 
 function tint(item) {
   // A stable pastel per item so thumbnails are distinguishable without any image assets.
@@ -196,6 +227,7 @@ function render() {
     garage: viewGarage,
     chat: viewChat,
     bundle: viewBundle,
+    negotiate: viewNegotiate,
   };
 
   const screen = $('#screen');
@@ -214,7 +246,7 @@ const TABS = [
 ];
 
 function renderTabs() {
-  const active = { analysing: 'scan', result: 'scan', listing: 'scan', garage: 'scan', bundle: 'inventory', chat: 'home' }[state.view] ?? state.view;
+  const active = { analysing: 'scan', result: 'scan', listing: 'scan', garage: 'scan', bundle: 'inventory', negotiate: 'inventory', chat: 'home' }[state.view] ?? state.view;
 
   $('#tabbar').innerHTML = TABS.map((tab) => {
     if (tab.center) {
@@ -315,7 +347,7 @@ function viewHome() {
     <div class="card">
       ${recent.map((entry) => `
         <button class="item-row" data-act="open-item" data-arg="${entry.uid}">
-          <span class="thumb" style="background:${tint(entry.item)}">${glyphOf(entry.item)}</span>
+          ${thumbFor(entry.item, entry.uid)}
           <span class="grow col">
             <span class="name truncate">${esc(entry.item.name)}</span>
             <span class="tiny">${statusLabel(entry)}</span>
@@ -404,6 +436,15 @@ function viewScan() {
 
     <div class="section-head"><h2>Other ways in</h2></div>
     <div class="card">
+      <label class="item-row" style="cursor:pointer;">
+        <span class="thumb">🖼️</span>
+        <span class="grow col">
+          <span class="name">Upload your own photos</span>
+          <span class="tiny">Use real pictures of your item</span>
+        </span>
+        <span style="color:var(--faint);">›</span>
+        <input type="file" class="sr-only" accept="image/*" multiple data-act="photos" ${gated ? 'disabled' : ''} />
+      </label>
       <button class="item-row" data-act="scan-random" ${gated ? 'disabled' : ''}>
         <span class="thumb">🎲</span>
         <span class="grow col"><span class="name">Surprise me</span><span class="tiny">Scan a random item</span></span>
@@ -416,7 +457,7 @@ function viewScan() {
       </button>
       <button class="item-row" data-act="receipt">
         <span class="thumb">🧾</span>
-        <span class="grow col"><span class="name">Import a receipt</span><span class="tiny">Auto-fill purchase date and price</span></span>
+        <span class="grow col"><span class="name">Import a receipt</span><span class="tiny">Work out what it has cost you to keep</span></span>
         <span style="color:var(--faint);">›</span>
       </button>
     </div>
@@ -442,7 +483,9 @@ function viewAnalysing() {
       <span class="scanline"></span>
       <span class="corner tl"></span><span class="corner tr"></span>
       <span class="corner bl"></span><span class="corner br"></span>
-      <span class="glyph">${state.pendingGlyph ?? '📦'}</span>
+      ${state.pendingPhoto
+        ? `<img src="${state.pendingPhoto}" alt="" style="width:100%;height:100%;object-fit:cover;opacity:0.85;" />`
+        : `<span class="glyph">${state.pendingGlyph ?? '📦'}</span>`}
     </div>
     <div class="card" style="margin-top:18px;">
       <div class="steps" id="steps">
@@ -456,14 +499,23 @@ function viewAnalysing() {
   `;
 }
 
-function startScan(itemId) {
+/**
+ * @param {string} [itemId]  Force a catalog item; omit to let the seed decide.
+ * @param {object} [options]
+ * @param {string[]} [options.photos]  Data URLs of photos the user actually uploaded.
+ * @param {string} [options.seed]      Stable seed, normally derived from the photo files.
+ */
+function startScan(itemId, options = {}) {
   if (!isPro() && scansLeft() === 0) {
     toast('Daily scan limit reached — upgrade for unlimited scans.');
     return;
   }
 
-  const item = getItem(itemId);
-  state.pendingGlyph = glyphOf(item);
+  const { photos = [], seed = `${itemId}-${Date.now()}` } = options;
+  const item = itemId ? getItem(itemId) : null;
+
+  state.pendingGlyph = item ? glyphOf(item) : '🖼️';
+  state.pendingPhoto = photos[0] ?? null;
   state.view = 'analysing';
   render();
 
@@ -472,22 +524,31 @@ function startScan(itemId) {
   steps.forEach((step, i) => setTimeout(() => step.classList.add('on'), 180 + i * 240));
 
   setTimeout(() => {
-    const recognition = analysePhoto({ seed: `${itemId}-${Date.now()}`, itemId, photoCount: 3 });
+    const photoCount = photos.length || 3;
+    const recognition = analysePhoto({ seed, itemId: itemId ?? undefined, photoCount });
+
+    if (photos.length) photoStore.set(seed, photos);
+
     state.current = {
       recognition,
       condition: recognition.condition,
       accessories: recognition.detectedAccessories,
       tier: 'fair',
-      photoCount: 3,
+      photoCount,
+      photoKey: seed,
       tone: state.prefs.tone,
-      room: categoryOf(item).room,
+      room: categoryOf(recognition.item).room,
     };
     state.scansToday += 1;
     state.view = 'result';
 
     if (state.garage.active) {
       const pricing = currentPricing();
-      state.garage.scanned.push({ itemId, condition: recognition.condition, value: pricing.prices.fair });
+      state.garage.scanned.push({
+        itemId: recognition.item.id,
+        condition: recognition.condition,
+        value: pricing.prices.fair,
+      });
       state.view = 'garage';
     }
 
@@ -544,7 +605,7 @@ function viewResult() {
       <span class="pill pill-indigo">Simulated recognition</span>
     </div>
 
-    <div class="thumb thumb-lg" style="background:${tint(item)}">${glyphOf(item)}</div>
+    ${thumbFor(item, state.current.photoKey, 'thumb-lg')}
 
     <div style="margin-top:16px;">
       <div class="eyebrow">${esc(item.brand)} · ${esc(categoryOf(item).label)}</div>
@@ -645,6 +706,8 @@ function viewResult() {
       </div>
     ` : ''}
 
+    ${depreciationCard(item, condition)}
+
     ${recognition.photoSuggestions.length ? `
       <div class="section-head"><h2>Improve your photos</h2></div>
       <div class="card">
@@ -661,6 +724,52 @@ function viewResult() {
       <button class="btn btn-block" data-act="create-listing">Sell Now →</button>
       <button class="btn btn-ghost btn-block" data-act="save-item">Save to inventory</button>
       <button class="btn btn-quiet btn-block" data-act="go" data-arg="chat">Ask about this item</button>
+    </div>
+  `;
+}
+
+/** Hold-or-sell timing, driven by the depreciation model. */
+function depreciationCard(item, condition, receipt = state.receipt) {
+  const analysis = analyseDepreciation({
+    item,
+    condition,
+    purchasePrice: receipt?.itemId === item.id ? receipt.price : undefined,
+    purchaseDate: receipt?.itemId === item.id ? receipt.date : undefined,
+  });
+
+  const { recommendation: rec, appreciating } = analysis;
+  const tone = rec.verdict === 'sell-now' ? 'banner-amber' : appreciating ? 'banner-emerald' : 'banner-indigo';
+
+  return `
+    <div class="section-head"><h2>Hold or sell?</h2>
+      <span class="link" data-act="receipt" data-arg="${item.id}">${analysis.known ? 'Edit receipt' : 'Add receipt'}</span>
+    </div>
+    <div class="card">
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="v">${money(analysis.inSixMonths)}</div>
+          <div class="k">Worth in 6 months</div>
+        </div>
+        <div class="stat">
+          <div class="v ${appreciating ? 'profit' : 'loss'}">${appreciating ? '+' : '−'}${money(Math.abs(analysis.monthlyChange), 2)}</div>
+          <div class="k">Per month ${appreciating ? 'gained' : 'lost'}</div>
+        </div>
+      </div>
+
+      ${analysis.known ? `
+        <div class="divider"></div>
+        <div class="ledger">
+          <div class="line"><span>Paid ${esc(analysis.purchaseDate)}</span><span class="num">${money(analysis.purchasePrice)}</span></div>
+          <div class="line"><span>Worth today after ${analysis.ageYears} years</span><span class="num">${money(analysis.current)}</span></div>
+          <div class="line"><span>Value lost</span><span class="num loss">−${money(analysis.lost)}</span></div>
+          <div class="line"><span>Cost of ownership</span><span class="num">${money(analysis.costPerMonth, 2)}/month</span></div>
+        </div>
+        ${analysis.inWarranty ? '<p class="tiny" style="margin-top:8px;">Likely still under manufacturer warranty — say so in the listing, it is worth real money to a buyer.</p>' : ''}
+      ` : ''}
+
+      <div class="banner ${tone}" style="margin-top:14px;">
+        <strong>${esc(rec.headline)}.</strong> ${esc(rec.detail)}
+      </div>
     </div>
   `;
 }
@@ -779,6 +888,22 @@ function viewListing() {
       ` : ''}
     </div>
 
+    <div class="section-head"><h2>Photos</h2>
+      <span class="tiny">${photoCount} attached</span>
+    </div>
+    <div class="card card-tight">
+      <div class="row-between">
+        <span class="tiny">Six or more photos is where listings stop losing buyers.</span>
+        <span class="row" style="gap:8px;">
+          <button class="btn btn-quiet btn-sm" data-act="photo-count" data-arg="-1"
+            ${photoCount <= 1 ? 'disabled' : ''} aria-label="Remove a photo">−</button>
+          <span class="num" style="font-weight:750;min-width:18px;text-align:center;">${photoCount}</span>
+          <button class="btn btn-ghost btn-sm" data-act="photo-count" data-arg="1"
+            ${photoCount >= 10 ? 'disabled' : ''} aria-label="Add a photo">+</button>
+        </span>
+      </div>
+    </div>
+
     <div class="section-head"><h2>Tone</h2></div>
     <div class="chip-row">
       ${TONES.map((t) => `
@@ -864,7 +989,9 @@ function viewInventory() {
   return `
     <div class="row-between" style="margin: 8px 0 14px;">
       <div><h1>Inventory</h1><p class="sub">${money(totalValue)} unsold across ${state.inventory.length} items</p></div>
-      ${selection.length >= 2 ? `<button class="btn btn-sm" data-act="go" data-arg="bundle">Bundle ${selection.length}</button>` : ''}
+      ${selection.length >= 2
+        ? `<button class="btn btn-sm" data-act="go" data-arg="bundle">Bundle ${selection.length}</button>`
+        : `<button class="btn btn-quiet btn-sm" data-act="export-csv" ${state.inventory.length ? '' : 'disabled'}>Export</button>`}
     </div>
 
     <div class="chip-row">
@@ -882,7 +1009,7 @@ function viewInventory() {
               <span class="box">✓</span>
             </button>
             <button class="item-row" style="border:none;padding:0;flex:1;" data-act="open-item" data-arg="${entry.uid}">
-              <span class="thumb" style="background:${tint(entry.item)}">${glyphOf(entry.item)}</span>
+              ${thumbFor(entry.item, entry.uid)}
               <span class="grow col">
                 <span class="name truncate">${esc(entry.item.name)}</span>
                 <span class="tiny">${statusLabel(entry)}</span>
@@ -1362,6 +1489,12 @@ const actions = {
 
   tone(arg) { state.current.tone = arg; render(); },
 
+  'photo-count'(arg) {
+    const next = state.current.photoCount + Number(arg);
+    state.current.photoCount = Math.min(10, Math.max(1, next));
+    render();
+  },
+
   reidentify(arg) {
     const recognition = analysePhoto({ seed: `${arg}-${Date.now()}`, itemId: arg, photoCount: 3 });
     state.current = {
@@ -1522,8 +1655,108 @@ const actions = {
     toast('Barcode scanning needs a camera — not available in the prototype.');
   },
 
-  receipt() {
-    toast('Receipt import needs OCR — not available in the prototype.');
+  receipt(arg) {
+    openReceiptSheet(arg ?? state.current?.recognition.item.id);
+  },
+
+  'save-receipt'(arg) {
+    const price = Number.parseFloat($('#receipt-price')?.value ?? '');
+    const date = ($('#receipt-date')?.value ?? '').trim();
+
+    if (!Number.isFinite(price) || price <= 0) {
+      toast('Enter what you paid, as a number.');
+      return;
+    }
+    if (Number.isNaN(new Date(date).getTime())) {
+      toast('Enter the purchase date as YYYY-MM-DD.');
+      return;
+    }
+
+    state.receipt = { itemId: arg, price, date };
+    closeSheet();
+    toast('Receipt saved');
+    save();
+    render();
+  },
+
+  'clear-receipt'() {
+    state.receipt = null;
+    closeSheet();
+    save();
+    render();
+  },
+
+  negotiate(arg) {
+    if (!isPro()) {
+      toast('The negotiation assistant is a Pro feature.');
+      return;
+    }
+    closeSheet();
+    state.negotiation = { uid: arg, offer: null };
+    state.view = 'negotiate';
+    render();
+  },
+
+  'offer-preset'(arg) {
+    state.negotiation.offer = Number(arg);
+    render();
+  },
+
+  'evaluate-offer'() {
+    const value = Number.parseFloat($('#offer-input')?.value ?? '');
+    if (!Number.isFinite(value) || value <= 0) {
+      toast('Enter the offer as a number.');
+      return;
+    }
+    state.negotiation.offer = value;
+    render();
+  },
+
+  'copy-reply'() {
+    const text = document.querySelector('.listing-box')?.textContent ?? '';
+    navigator.clipboard?.writeText(text).then(
+      () => toast('Reply copied to your clipboard'),
+      () => toast('Could not access the clipboard'),
+    );
+  },
+
+  'accept-offer'(arg) {
+    const entry = state.inventory.find((e) => e.uid === state.negotiation.uid);
+    if (!entry) return;
+
+    entry.status = 'sold';
+    entry.soldFor = Number(arg);
+    state.negotiation = null;
+    state.view = 'inventory';
+    toast(`Sold for ${money(Number(arg))}`);
+    save();
+    render();
+  },
+
+  'export-csv'() {
+    const rows = state.inventory.map(inventoryEntry).map((entry) => {
+      const ranked = rankMarketplaces(entry.item, entry.pricing.prices.fair, { condition: entry.condition });
+      const best = ranked[0];
+      return {
+        Item: entry.item.name,
+        Brand: entry.item.brand,
+        Category: categoryOf(entry.item).label,
+        Condition: getCondition(entry.condition).label,
+        Room: entry.room,
+        Status: entry.status,
+        'Quick price': entry.pricing.prices.quick,
+        'Market price': entry.pricing.prices.fair,
+        'Patient price': entry.pricing.prices.patient,
+        'Sold for': entry.soldFor ?? '',
+        'Best marketplace': best ? best.marketplace.name : 'None',
+        'Estimated net': best ? best.profit.net.toFixed(2) : '',
+        'Listed on': entry.listedOn.map((id) => getMarketplace(id)?.name ?? id).join('; '),
+        Scanned: new Date(entry.date).toISOString().slice(0, 10),
+      };
+    });
+
+    downloadCsv(toCsv(rows), `resellai-inventory-${new Date().toISOString().slice(0, 10)}.csv`);
+    toast(`Exported ${rows.length} items`);
   },
 
   reset() {
@@ -1537,11 +1770,16 @@ const actions = {
 };
 
 function saveCurrent(status, targets) {
-  const { recognition, condition, accessories, tier, room } = state.current;
+  const { recognition, condition, accessories, tier, room, photoKey } = state.current;
   const pricing = currentPricing();
+  const uid = `i-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  // Re-key any uploaded photos to the inventory entry so its thumbnail keeps them.
+  const photos = photosFor(photoKey);
+  if (photos.length) photoStore.set(uid, photos);
 
   state.inventory.push({
-    uid: `i-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    uid,
     itemId: recognition.item.id,
     condition,
     accessories: [...accessories],
@@ -1569,7 +1807,7 @@ function openSheet(entry) {
     <div class="sheet" data-stop="1">
       <div class="grabber"></div>
       <div class="row">
-        <span class="thumb" style="background:${tint(enriched.item)}">${glyphOf(enriched.item)}</span>
+        ${thumbFor(enriched.item, entry.uid)}
         <span class="grow col">
           <span style="font-weight:700;font-size:16px;">${esc(enriched.item.name)}</span>
           <span class="tiny">${esc(getCondition(entry.condition).label)} · ${esc(entry.room)}</span>
@@ -1601,6 +1839,9 @@ function openSheet(entry) {
       ` : ''}
 
       <div class="stack" style="margin-top:16px;">
+        ${entry.status === 'listed'
+          ? `<button class="btn btn-block" data-act="negotiate" data-arg="${entry.uid}">An offer came in${isPro() ? '' : ' · Pro'}</button>`
+          : ''}
         ${entry.status !== 'sold' ? `<button class="btn btn-emerald btn-block" data-act="mark-sold" data-arg="${entry.uid}">Mark as sold</button>` : ''}
         <button class="btn btn-quiet btn-block" data-act="archive-item" data-arg="${entry.uid}">Remove from inventory</button>
         <button class="btn btn-ghost btn-block" data-act="close-sheet">Close</button>
@@ -1615,7 +1856,212 @@ function closeSheet() {
   document.querySelector('.sheet-backdrop')?.remove();
 }
 
+/**
+ * Receipt entry.
+ *
+ * The PRD imports this by OCR'ing a photographed receipt. There is no OCR here, so the two
+ * fields that actually drive the depreciation maths are entered by hand instead — the analysis
+ * behind them is the same either way.
+ */
+function openReceiptSheet(itemId) {
+  const item = getItem(itemId) ?? state.current?.recognition.item;
+  if (!item) {
+    toast('Scan an item first, then add its receipt.');
+    return;
+  }
+
+  const existing = state.receipt?.itemId === item.id ? state.receipt : null;
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'sheet-backdrop';
+  backdrop.dataset.act = 'close-sheet';
+  backdrop.innerHTML = `
+    <div class="sheet" data-stop="1">
+      <div class="grabber"></div>
+      <h2>Receipt details</h2>
+      <p class="tiny" style="margin-top:6px;">
+        What you paid and when. This drives the depreciation figures — how much this item has
+        cost you to own, and what waiting longer will cost.
+      </p>
+
+      <div class="col" style="gap:14px;margin-top:16px;">
+        <label class="col" style="gap:6px;">
+          <span class="eyebrow">Purchase price</span>
+          <input type="text" inputmode="decimal" id="receipt-price"
+            placeholder="${item.msrp ?? 100}" value="${existing?.price ?? ''}" />
+        </label>
+        <label class="col" style="gap:6px;">
+          <span class="eyebrow">Purchase date</span>
+          <input type="text" id="receipt-date" placeholder="YYYY-MM-DD" value="${existing?.date ?? ''}" />
+        </label>
+      </div>
+
+      <div class="stack" style="margin-top:18px;">
+        <button class="btn btn-block" data-act="save-receipt" data-arg="${item.id}">Save receipt</button>
+        ${existing ? `<button class="btn btn-quiet btn-block" data-act="clear-receipt">Remove receipt</button>` : ''}
+        <button class="btn btn-ghost btn-block" data-act="close-sheet">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  $('.phone').appendChild(backdrop);
+}
+
+// ---------------------------------------------------------------- negotiation
+
+function viewNegotiate() {
+  const context = state.negotiation;
+  if (!context) {
+    state.view = 'inventory';
+    return viewInventory();
+  }
+
+  const entry = state.inventory.find((e) => e.uid === context.uid);
+  if (!entry) {
+    state.view = 'inventory';
+    return viewInventory();
+  }
+
+  const enriched = inventoryEntry(entry);
+  const askPrice = enriched.pricing.prices.fair;
+  const marketplace = getMarketplace(entry.listedOn[0]) ?? getMarketplace('ebay');
+  const daysListed = Math.max(0, Math.round((Date.now() - entry.date) / 86400000));
+
+  const result = context.offer
+    ? evaluateOffer({
+        item: enriched.item,
+        marketplace,
+        askPrice,
+        offer: context.offer,
+        condition: entry.condition,
+        daysListed,
+        tone: state.prefs.tone,
+      })
+    : null;
+
+  const badge = {
+    accept: ['pill-emerald', 'Accept it'],
+    counter: ['pill-indigo', 'Counter'],
+    hold: ['pill-amber', 'Hold firm'],
+    decline: ['pill-rose', 'Decline'],
+  };
+
+  return `
+    <div class="row-between" style="margin: 8px 0 14px;">
+      <button class="btn btn-quiet btn-sm" data-act="go" data-arg="inventory">‹ Back</button>
+      <span class="pill pill-amber">Pro feature</span>
+    </div>
+
+    <h1>An offer came in</h1>
+    <p class="sub" style="margin-top:4px;">Tell me what they offered and I will tell you whether to take it.</p>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="row">
+        ${thumbFor(enriched.item, entry.uid)}
+        <span class="grow col">
+          <span style="font-weight:660;font-size:14.5px;" class="truncate">${esc(enriched.item.name)}</span>
+          <span class="tiny">Listed at ${money(askPrice)} on ${esc(marketplace.name)} · ${daysListed} day${daysListed === 1 ? '' : 's'} ago</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="section-head"><h2>Their offer</h2></div>
+    <div class="row" style="gap:10px;">
+      <input type="text" inputmode="decimal" id="offer-input" class="grow"
+        placeholder="${Math.round(askPrice * 0.8)}" value="${context.offer ?? ''}" />
+      <button class="btn" data-act="evaluate-offer">Check</button>
+    </div>
+
+    <div class="chip-row" style="margin-top:10px;">
+      ${[0.9, 0.8, 0.65, 0.4].map((share) => {
+        const value = Math.round(askPrice * share);
+        return `<button class="chip" data-act="offer-preset" data-arg="${value}"
+          aria-pressed="${context.offer === value}">${money(value)}</button>`;
+      }).join('')}
+    </div>
+
+    ${result ? `
+      <div class="card" style="margin-top:16px;">
+        <div class="row-between">
+          <span class="pill ${badge[result.verdict][0]}" style="font-size:13px;padding:7px 14px;">${badge[result.verdict][1]}</span>
+          <span class="num" style="font-weight:750;">${money(result.offerNet, 2)} net</span>
+        </div>
+        <p class="tiny" style="margin-top:12px;">${esc(result.reasoning)}</p>
+
+        <div class="divider"></div>
+        <div class="ledger">
+          <div class="line"><span>Their offer</span><span class="num">${money(result.offer)}</span></div>
+          <div class="line"><span>You net</span><span class="num">${money(result.offerNet, 2)}</span></div>
+          <div class="line"><span>Your floor today</span><span class="num">${money(result.reservationNet, 2)}</span></div>
+          ${result.verdict === 'counter' ? `<div class="line total"><span>Counter at</span><span class="num profit">${money(result.counterPrice)}</span></div>` : ''}
+        </div>
+        <p class="tiny" style="margin-top:10px;">
+          Your floor started at ${money(result.fairNet, 2)} and slides toward ${money(result.quickNet, 2)}
+          the longer it sits — typical time to sell here is ${result.typicalDays} days.
+        </p>
+      </div>
+
+      <div class="section-head"><h2>Suggested reply</h2>
+        <span class="link" data-act="copy-reply">Copy</span>
+      </div>
+      <div class="listing-box">${esc(result.reply)}</div>
+
+      ${result.verdict === 'accept' ? `
+        <div style="margin-top:18px;">
+          <button class="btn btn-emerald btn-block" data-act="accept-offer" data-arg="${result.offer}">
+            Accept and mark sold at ${money(result.offer)}
+          </button>
+        </div>
+      ` : ''}
+    ` : `
+      <div class="empty"><span class="g">🤝</span>Enter an offer to see whether it clears your floor.</div>
+    `}
+  `;
+}
+
 // ---------------------------------------------------------------- wiring
+
+/** Hand a generated CSV to the browser as a download. */
+function downloadCsv(text, filename) {
+  // The BOM is what makes Excel open UTF-8 correctly instead of mangling accented characters.
+  const blob = new Blob([`﻿${text}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  // Revoking immediately can cancel the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/** Photo uploads arrive as a change event, not a click. */
+document.addEventListener('change', (event) => {
+  const input = event.target.closest('[data-act="photos"]');
+  if (!input || !input.files?.length) return;
+
+  const files = [...input.files].slice(0, 8);
+  // Seed from file metadata so re-uploading the same photos identifies the same item.
+  const seed = files.map((file) => `${file.name}:${file.size}`).join('|');
+
+  Promise.all(
+    files.map(
+      (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        }),
+    ),
+  ).then(
+    (photos) => startScan(undefined, { photos, seed }),
+    () => toast('Could not read those photos.'),
+  );
+});
 
 document.addEventListener('click', (event) => {
   const trigger = event.target.closest('[data-act]');

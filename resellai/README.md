@@ -13,7 +13,7 @@ No dependencies, no build step, no install.
 ```bash
 cd resellai
 npm run serve     # http://localhost:4173
-npm test          # 59 unit tests over the pricing, profit, and listing engines
+npm test          # 86 unit tests over the pricing, profit, listing, and offer engines
 npm run build     # bundles everything into dist/resellai.html
 ```
 
@@ -87,7 +87,10 @@ resellai/
 │       ├── recognition.js   Simulated vision, condition, missing-angle hints
 │       ├── listing.js       Title, description, keywords, specifics, tones
 │       ├── quality.js       Listing score out of 100 and ranked suggestions
-│       └── bundle.js        Bundle versus separate listings
+│       ├── bundle.js        Bundle versus separate listings
+│       ├── negotiation.js   Accept / counter / hold / decline, and the reply
+│       ├── depreciation.js  What holding an item costs per month
+│       └── export.js        RFC 4180 CSV export
 ├── app/                     Phone-shell UI (index.html, styles.css, app.js)
 ├── test/                    Unit tests, run with node --test
 └── scripts/                 Dev server and single-file bundler
@@ -96,16 +99,37 @@ resellai/
 The engines are plain ES modules with no imports outside this directory, so they run unchanged in
 Node, in the browser, or in a future backend.
 
+## Two more judgement calls worth knowing about
+
+**A stale listing should lower its own floor.** The negotiation assistant decides using a
+reservation price — the least you should take *today*. It starts at the fair-market net and
+slides toward the quick-sale net as the listing ages past its expected time to sell. The same
+$300 offer is refused on day one and accepted on day sixty, which is what an experienced seller
+does and what a spreadsheet never tells you.
+
+**An offer is already a settled number.** The first version discounted incoming offers by the
+platform's realization factor, the same one used to model where a *listing* settles. That
+double-counts: a buyer offering $387 cash hands you $387, not $387 minus a haggling allowance.
+Offers and counters are now priced raw, while the floor they are measured against keeps the
+realization discount — because that is what you would actually end up with if you held out. The
+practical effect is that strong local cash offers get accepted instead of rejected.
+
 ## What the prototype covers
 
-From the PRD's Phase 1 and Phase 3: item recognition, condition grading, the pricing engine,
+From the PRD's Phase 1 through 4: item recognition, condition grading, the pricing engine,
 profit calculator, marketplace recommendation with explanations, AI listing generation with five
 tones, listing quality score, photo suggestions, shipping assistant, inventory with rooms and
-folders, price alerts, home value dashboard, analytics with seasonality, Garage Sale Mode, the
-bundle builder, donate-instead-of-sell advice, the chat assistant, achievements, dark mode, and
-the free/Pro plan gate.
+folders, CSV export, price alerts, home value dashboard, analytics with seasonality, Garage Sale
+Mode, the bundle builder, donate-instead-of-sell advice, the chat assistant, the AI negotiation
+assistant, depreciation and hold-or-sell timing, achievements, dark mode, and the free/Pro gate.
 
-Not built: real camera capture, background removal, barcode and receipt OCR, and actual
+You can upload real photos of your own. They are displayed as the item's thumbnail and drive the
+photo count behind the quality score, though recognition remains simulated. Photos are held in
+memory only — a few phone photos as data URLs would exhaust the localStorage quota and take the
+rest of the session's state down with them.
+
+Not built: live camera capture, background removal, barcode scanning, receipt OCR (purchase
+price and date are typed in, and the depreciation maths behind them is real), and actual
 marketplace API integrations — publishing updates local inventory rather than posting anywhere.
 
 ## Design
