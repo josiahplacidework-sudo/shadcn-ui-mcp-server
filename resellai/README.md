@@ -15,9 +15,17 @@ Requires Node.js 18 or newer.
 ```bash
 cd resellai
 npm run serve     # http://localhost:4173
-npm test          # 107 unit tests over the pricing, profit, listing, offer, and vision engines
-npm run build     # bundles everything into dist/resellai.html
+npm test          # 109 unit tests over the pricing, profit, listing, offer, and vision engines
+npm run build     # bundles everything into two single-file builds in dist/
 ```
+
+The build emits two variants of the same app, both fully self-contained with no external
+requests:
+
+| File | Use it for |
+| --- | --- |
+| `dist/resellai-standalone.html` | Opening the app straight from disk. A complete HTML document — double-click it, or drag it into a browser tab. |
+| `dist/resellai.html` | Embedding in a host page that supplies its own `<!doctype html>` and `<head>` (a published Claude Artifact, for instance). A document *fragment*, so opening it directly would fall back to quirks mode. |
 
 ## What is real and what is simulated
 

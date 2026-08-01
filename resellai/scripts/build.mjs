@@ -167,9 +167,38 @@ ${script}
 </script>
 `;
 
+// The standalone build wraps the same fragment in a complete document, for opening the file
+// directly from disk. Without a doctype a browser falls back to quirks mode, which breaks the
+// phone shell's layout — so this variant carries the head from app/index.html rather than
+// relying on a host page to supply one.
+const headMatch = html.match(/<head>([\s\S]*?)<\/head>/);
+if (!headMatch) throw new Error('app/index.html: could not find the <head> element');
+// Drop the stylesheet link; the CSS is inlined below.
+const head = headMatch[1].replace(/\s*<link\s+rel="stylesheet"[\s\S]*?\/>\s*/g, '\n');
+
+const standalone = `<!doctype html>
+<html lang="en">
+<head>
+${head.trim()}
+<style>
+${css}
+</style>
+</head>
+<body>
+${markup.trim()}
+<script type="module">
+${script}
+</script>
+</body>
+</html>
+`;
+
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist/resellai.html'), page);
+writeFileSync(resolve(root, 'dist/resellai-standalone.html'), standalone);
 
 const kb = (page.length / 1024).toFixed(1);
-console.log(`Bundled ${modules.size} modules → dist/resellai.html (${kb} KB)`);
+const standaloneKb = (standalone.length / 1024).toFixed(1);
+console.log(`Bundled ${modules.size} modules → dist/resellai.html (${kb} KB, fragment for embedding)`);
+console.log(`                              → dist/resellai-standalone.html (${standaloneKb} KB, opens from disk)`);
 console.log(`Entry: ${entryId}`);
