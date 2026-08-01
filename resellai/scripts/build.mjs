@@ -157,7 +157,14 @@ const markup = bodyMatch[1].replace(/\s*<script[\s\S]*?<\/script>\s*/g, '\n');
 // body here would nest a second document inside the first. Standards mode comes from the host
 // wrapper. To open the bundle directly in a browser instead, use `npm run serve`, which serves
 // app/index.html — a complete document with its own doctype.
+//
+// The one head element we do emit is the viewport meta, and it earns its place. A host wrapper
+// will supply a sensible `width=device-width`, but it has no reason to add `viewport-fit=cover`
+// — and without that, `env(safe-area-inset-*)` resolves to zero, so the notch handling in
+// styles.css would quietly do nothing on a phone. Browsers scan for this tag wherever it
+// appears and the later one wins, so declaring it here reliably overrides the host's.
 const page = `<title>ResellAI — Take one photo. Find out what it is worth.</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <style>
 ${css}
 </style>
