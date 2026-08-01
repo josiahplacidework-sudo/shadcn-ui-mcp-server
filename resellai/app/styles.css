@@ -220,6 +220,18 @@ body {
   background-clip: content-box;
 }
 
+/*
+ * The exact complement of the bezel query above: no simulated frame means we are on a real
+ * handset, which already draws a status bar of its own. A second one under it reads as a bug,
+ * so the simulated bar goes and the safe-area inset takes over its job of holding content clear
+ * of the notch. Added to the home screen on iOS the app fills the display, which is when this
+ * matters. Placed after `.status-bar` deliberately: same specificity, so source order decides.
+ */
+@media (max-width: 519px), (max-height: 719px) {
+  .status-bar { display: none; }
+  .phone { padding-top: env(safe-area-inset-top, 0px); }
+}
+
 .screen {
   flex: 1 1 auto;
   overflow-y: auto;
