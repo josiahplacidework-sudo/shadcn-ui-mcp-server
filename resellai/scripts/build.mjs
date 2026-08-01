@@ -163,8 +163,16 @@ const markup = bodyMatch[1].replace(/\s*<script[\s\S]*?<\/script>\s*/g, '\n');
 // — and without that, `env(safe-area-inset-*)` resolves to zero, so the notch handling in
 // styles.css would quietly do nothing on a phone. Browsers scan for this tag wherever it
 // appears and the later one wins, so declaring it here reliably overrides the host's.
+// The home-screen icon is inlined rather than linked. Both builds are single files with no
+// sibling assets to serve it from, and without it iOS falls back to a screenshot of the page.
+const iconPng = readFileSync(resolve(root, 'app/apple-touch-icon.png')).toString('base64');
+const APPLE_ICON_LINK = `<link rel="apple-touch-icon" href="data:image/png;base64,${iconPng}" />`;
+
 const page = `<title>ResellAI — Take one photo. Find out what it is worth.</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="ResellAI" />
+${APPLE_ICON_LINK}
 <style>
 ${css}
 </style>
@@ -186,12 +194,16 @@ if (!headMatch) throw new Error('app/index.html: could not find the <head> eleme
 // an external <link> in a build whose entire purpose is to need no external requests.
 const STYLESHEET_LINK_RE =
   /\s*<link\b(?=[^>]*\brel\s*=\s*["'][^"']*\bstylesheet\b[^"']*["'])[^>]*>\s*/gi;
-const head = headMatch[1].replace(STYLESHEET_LINK_RE, '\n');
+/** The icon link is re-emitted inlined below, so the file-relative one from index.html goes. */
+const APPLE_ICON_LINK_RE =
+  /\s*<link\b(?=[^>]*\brel\s*=\s*["'][^"']*\bapple-touch-icon\b[^"']*["'])[^>]*>\s*/gi;
+const head = headMatch[1].replace(STYLESHEET_LINK_RE, '\n').replace(APPLE_ICON_LINK_RE, '\n');
 
 const standalone = `<!doctype html>
 <html lang="en">
 <head>
 ${head.trim()}
+${APPLE_ICON_LINK}
 <style>
 ${css}
 </style>
@@ -209,9 +221,16 @@ ${script}
 // outright, and the standalone build is opened straight from a file:// path. An external
 // reference surviving into either one is a silent failure at exactly the moment it matters, so
 // check rather than trust the transforms above.
+// Any href or src that is not a data: URI would be fetched at runtime. Checked generically
+// rather than per-tag so a future <link> or <img> added to index.html is caught too.
+const EXTERNAL_REF_RE = /<(?:link|script|img|source)\b[^>]*\b(?:href|src)\s*=\s*["'](?!data:)[^"']*["'][^>]*>/gi;
+
 for (const [name, output] of [['resellai.html', page], ['resellai-standalone.html', standalone]]) {
-  const leftover =
-    output.match(STYLESHEET_LINK_RE)?.[0] ?? output.match(/<script\b[^>]*\bsrc\s*=/i)?.[0];
+  // Only the document shell is checked. The bundled script is already inline by construction,
+  // and it builds markup in template literals — `<img src="${pendingPhoto}">` is a runtime data
+  // URL, not a fetch, but reads as an external reference to a regex.
+  const shell = output.replace(/<script type="module">[\s\S]*?<\/script>/g, '');
+  const leftover = shell.match(EXTERNAL_REF_RE)?.[0];
   if (leftover) {
     throw new Error(`dist/${name} still references an external file: ${leftover.trim()}`);
   }
