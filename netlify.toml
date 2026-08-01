@@ -1,0 +1,15 @@
+# Deploys the ResellAI prototype (resellai/) as a Netlify site.
+#
+# This file lives at the repo root — rather than inside resellai/ — because Netlify looks for
+# netlify.toml at the repository root by default. Placing it here means connecting this whole
+# GitHub repo to a new Netlify site just works, with no manual "base directory" setting to
+# remember in the dashboard. `base` below scopes everything else to the resellai/ subdirectory;
+# nothing about the unrelated MCP-server project this prototype lives alongside is affected.
+#
+# The build has no external dependencies to install (see resellai/README.md), and produces
+# dist/index.html — a single self-contained file with the CSS and all JS modules inlined, so
+# there is nothing else for Netlify to serve.
+[build]
+  base = "resellai"
+  command = "npm run build"
+  publish = "dist"

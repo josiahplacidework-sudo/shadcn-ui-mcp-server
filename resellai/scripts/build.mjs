@@ -225,7 +225,16 @@ ${script}
 // rather than per-tag so a future <link> or <img> added to index.html is caught too.
 const EXTERNAL_REF_RE = /<(?:link|script|img|source)\b[^>]*\b(?:href|src)\s*=\s*["'](?!data:)[^"']*["'][^>]*>/gi;
 
-for (const [name, output] of [['resellai.html', page], ['resellai-standalone.html', standalone]]) {
+// index.html is the same document as the standalone build, under the name a static host looks
+// for automatically. Two names for identical content rather than one: resellai-standalone.html
+// is the one meant for a person to download and double-click, where a generic "index.html"
+// would be a confusing filename to hand someone; index.html is the one a host's default
+// directory-listing behaviour finds without any redirect or rewrite rule.
+for (const [name, output] of [
+  ['resellai.html', page],
+  ['resellai-standalone.html', standalone],
+  ['index.html', standalone],
+]) {
   // Only the document shell is checked. The bundled script is already inline by construction,
   // and it builds markup in template literals — `<img src="${pendingPhoto}">` is a runtime data
   // URL, not a fetch, but reads as an external reference to a regex.
@@ -239,9 +248,11 @@ for (const [name, output] of [['resellai.html', page], ['resellai-standalone.htm
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist/resellai.html'), page);
 writeFileSync(resolve(root, 'dist/resellai-standalone.html'), standalone);
+writeFileSync(resolve(root, 'dist/index.html'), standalone);
 
 const kb = (page.length / 1024).toFixed(1);
 const standaloneKb = (standalone.length / 1024).toFixed(1);
 console.log(`Bundled ${modules.size} modules → dist/resellai.html (${kb} KB, fragment for embedding)`);
 console.log(`                              → dist/resellai-standalone.html (${standaloneKb} KB, opens from disk)`);
+console.log(`                              → dist/index.html (${standaloneKb} KB, same file — for static hosts)`);
 console.log(`Entry: ${entryId}`);

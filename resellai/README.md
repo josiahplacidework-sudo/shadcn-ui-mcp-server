@@ -16,17 +16,31 @@ Requires Node.js 18 or newer.
 ```bash
 cd resellai
 npm run serve     # http://localhost:4173
-npm test          # 109 unit tests over the pricing, profit, listing, offer, and vision engines
-npm run build     # bundles everything into two single-file builds in dist/
+npm test          # 113 unit tests over the pricing, profit, listing, offer, and vision engines
+npm run build     # bundles everything into three single-file builds in dist/
 ```
 
-The build emits two variants of the same app, both fully self-contained with no external
+The build emits three variants of the same app, all fully self-contained with no external
 requests:
 
 | File | Use it for |
 | --- | --- |
-| `dist/resellai-standalone.html` | Opening the app straight from disk. A complete HTML document — double-click it, or drag it into a browser tab. |
+| `dist/index.html` | Serving from a static host (Netlify, GitHub Pages, S3, …) — the filename a host's default routing looks for automatically, so no redirect or rewrite rule is needed. |
+| `dist/resellai-standalone.html` | Opening the app straight from disk. Same document as `index.html`, named for a person to download and double-click rather than for a host to auto-serve. |
 | `dist/resellai.html` | Embedding in a host page that supplies its own `<!doctype html>` and `<head>` (a published Claude Artifact, for instance). A document *fragment*, so opening it directly would fall back to quirks mode. |
+
+### Deploying
+
+The whole app is one static file with no build-time dependencies and no server, so any static
+host works. For Netlify specifically: connect this GitHub repository to a new site and it deploys
+itself — [`netlify.toml`](../netlify.toml) at the repo root points the build at this directory
+(`base = "resellai"`), runs `npm run build`, and publishes `dist/`, where `index.html` is what
+Netlify serves. No dashboard configuration is required beyond connecting the repository.
+
+Hosting on a real domain over HTTPS is also what unlocks the live camera in Scan → Take a photo:
+`getUserMedia` needs a secure context, which `dist/resellai-standalone.html` opened from
+`file://` does not provide — that build offers photo upload instead. Serve `index.html` from
+Netlify (or any HTTPS host) and the camera works there too.
 
 ## What is real and what is simulated
 
