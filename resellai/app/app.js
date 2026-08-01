@@ -7,6 +7,7 @@
  */
 
 import { CATALOG, CATEGORIES, categoryOf, getItem } from '../src/data/catalog.js';
+import { cameraSupported, captureFrame, describeCameraError, startCamera, stopCamera } from './camera.js';
 import {
   analyseBundle,
   analyseDepreciation,
@@ -90,6 +91,21 @@ const photoStore = new Map();
  * take the rest of the session's state with it.
  */
 let pendingPhoto = null;
+
+/**
+ * The open camera stream, if the camera view is showing.
+ *
+ * Module-level and singular on purpose: the device camera stays on until every track is stopped,
+ * so there must be exactly one handle to stop, and it must survive the re-renders that replace
+ * the <video> element underneath it.
+ */
+let cameraStream = null;
+
+/** Release the camera whenever we leave the camera view, however we leave it. */
+function closeCamera() {
+  stopCamera(cameraStream);
+  cameraStream = null;
+}
 
 function photosFor(key) {
   return photoStore.get(key) ?? [];
@@ -283,6 +299,7 @@ function render() {
     chat: viewChat,
     bundle: viewBundle,
     negotiate: viewNegotiate,
+    camera: viewCamera,
   };
 
   const screen = $('#screen');
@@ -290,6 +307,12 @@ function render() {
   screen.scrollTop = 0;
 
   renderTabs();
+
+  // Camera lifetime is settled here rather than in each action. Every route change passes
+  // through render(), so leaving by the back button, the tab bar, or a capture all release the
+  // device — and a navigation path added later cannot forget to.
+  if (state.view === 'camera') attachCamera();
+  else closeCamera();
 }
 
 const TABS = [
@@ -449,6 +472,85 @@ function statusLabel(entry) {
   return `In ${entry.room}`;
 }
 
+// ---------------------------------------------------------------- camera
+
+/**
+ * Live camera view.
+ *
+ * Rendered before the stream exists — `render()` is synchronous, and opening a camera is not.
+ * The <video> starts empty and `attachCamera()` fills it once the permission prompt resolves.
+ */
+function viewCamera() {
+  return `
+    <div class="row-between" style="margin: 8px 0 14px;">
+      <button class="btn btn-quiet btn-sm" data-act="go" data-arg="scan">‹ Back</button>
+      ${state.prefs.useVisionAI && visionApiKey
+        ? '<span class="pill pill-emerald">AI recognition on</span>'
+        : '<span class="pill pill-indigo">Simulated recognition</span>'}
+    </div>
+
+    <h1>Take a photo</h1>
+    <p class="sub" style="margin-top:4px;">Fill the frame with the item, and keep the background plain.</p>
+
+    <div class="viewfinder" style="margin-top:16px;height:340px;">
+      <video id="camera-feed" playsinline muted
+        style="width:100%;height:100%;object-fit:cover;background:#111827;"></video>
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <span class="glyph" id="camera-placeholder" style="position:absolute;">📷</span>
+    </div>
+
+    <p class="tiny" id="camera-status" style="margin-top:10px;">Starting the camera…</p>
+
+    <div class="stack" style="margin-top:16px;">
+      <button class="btn btn-block" data-act="capture" id="camera-shutter" disabled>Capture</button>
+      <button class="btn btn-ghost btn-block" data-act="go" data-arg="scan">Cancel</button>
+    </div>
+  `;
+}
+
+/**
+ * Open the camera and wire it to the just-rendered view.
+ *
+ * Deliberately not awaited by the caller: the view is already on screen, and this fills it in
+ * when the user answers the permission prompt — which may be never.
+ */
+async function attachCamera() {
+  const video = $('#camera-feed');
+  if (!video) return;
+
+  // A re-render while the camera is open leaves a fresh <video> and a stream that is still
+  // running — rebind rather than restarting, which would flicker and re-acquire the device.
+  if (cameraStream) {
+    video.srcObject = cameraStream;
+    video.play().catch(() => {});
+    markCameraReady();
+    return;
+  }
+
+  try {
+    cameraStream = await startCamera(video);
+  } catch (error) {
+    // The view may have been left while the permission prompt sat open.
+    if (state.view !== 'camera') return closeCamera();
+    const status = $('#camera-status');
+    if (status) status.textContent = describeCameraError(error);
+    return;
+  }
+
+  // The same race the other way: permission granted after the user navigated away.
+  if (state.view !== 'camera') return closeCamera();
+  markCameraReady();
+}
+
+function markCameraReady() {
+  $('#camera-placeholder')?.remove();
+  const status = $('#camera-status');
+  if (status) status.textContent = 'Ready — tap Capture when the item fills the frame.';
+  const shutter = $('#camera-shutter');
+  if (shutter) shutter.disabled = false;
+}
+
 // ---------------------------------------------------------------- scan
 
 function viewScan() {
@@ -474,8 +576,9 @@ function viewScan() {
       </div>
     ` : `
       <div class="banner banner-indigo" style="margin-top:14px;">
-        This prototype has no camera model behind it. Pick an item below and the recognition
-        result is simulated — every other number on the next screen is computed for real.
+        ${state.prefs.useVisionAI && visionApiKey
+          ? 'Real AI recognition is on, so a photo you take or upload is genuinely identified. Picking a sample below stays simulated — there is no photo to look at.'
+          : 'Picking a sample below gives a simulated recognition result. Every other number on the next screen is computed for real, and you can switch on real AI recognition in Profile.'}
       </div>
     `}
 
@@ -494,6 +597,16 @@ function viewScan() {
 
     <div class="section-head"><h2>Other ways in</h2></div>
     <div class="card">
+      ${cameraSupported() ? `
+        <button class="item-row" data-act="camera" ${gated ? 'disabled' : ''}>
+          <span class="thumb">📷</span>
+          <span class="grow col">
+            <span class="name">Take a photo</span>
+            <span class="tiny">Use the camera on this device</span>
+          </span>
+          <span style="color:var(--faint);">›</span>
+        </button>
+      ` : ''}
       <label class="item-row" style="cursor:pointer;">
         <span class="thumb">🖼️</span>
         <span class="grow col">
@@ -1547,6 +1660,33 @@ const actions = {
 
   'scan-random'() {
     startScan(CATALOG[Math.floor(Math.random() * CATALOG.length)].id);
+  },
+
+  camera() {
+    // Checked before opening the device rather than after, so a gated user is not asked for
+    // camera permission only to be told the scan is not allowed.
+    if (!isPro() && scansLeft() === 0) {
+      toast('Daily scan limit reached — upgrade for unlimited scans.');
+      return;
+    }
+    state.view = 'camera';
+    render();
+  },
+
+  capture() {
+    const video = $('#camera-feed');
+    if (!video || !cameraStream) return;
+
+    let photo;
+    try {
+      photo = captureFrame(video);
+    } catch (error) {
+      toast(error.message);
+      return;
+    }
+
+    // startScan renders the analysing view, and render() releases the camera on the way out.
+    startScan(undefined, { photos: [photo], seed: `camera-${Date.now()}` });
   },
 
   'garage-scan'() {

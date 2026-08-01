@@ -152,9 +152,14 @@ opt-in real vision path described above, in which case the photo is genuinely id
 are held in memory only — a few phone photos as data URLs would exhaust the localStorage quota and take the
 rest of the session's state down with them.
 
-Not built: live camera capture, background removal, barcode scanning, receipt OCR (purchase
-price and date are typed in, and the depreciation maths behind them is real), and actual
-marketplace API integrations — publishing updates local inventory rather than posting anywhere.
+Live camera capture is real: "Take a photo" opens the device camera through `getUserMedia`,
+and the captured frame goes down the same path as an uploaded file — so it is identified by the
+vision model when that is switched on. The option only appears in a secure context, since
+`getUserMedia` is not exposed over `file://`; the standalone build falls back to uploading.
+
+Not built: background removal, barcode scanning, receipt OCR (purchase price and date are typed
+in, and the depreciation maths behind them is real), and actual marketplace API integrations —
+publishing updates local inventory rather than posting anywhere.
 
 ## Design
 
