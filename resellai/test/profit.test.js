@@ -173,6 +173,17 @@ test('books ship by Media Mail, and freight items do not ship at all', () => {
   assert.equal(peloton.total, 0);
 });
 
+test('a book lot over the USPS Media Mail weight limit ships by another carrier', () => {
+  const books = getItem('paperback-lot');
+  assert.match(estimateShipping({ ...books, weightLb: 70 }).carrier.name, /Media Mail/);
+
+  // USPS refuses Media Mail over 70 lb, so quoting its rate here would price a service the
+  // seller could not actually buy.
+  const overweight = estimateShipping({ ...books, weightLb: 71 });
+  assert.doesNotMatch(overweight.carrier.name, /Media Mail/);
+  assert.ok(overweight.shippable);
+});
+
 test('shipping cost rises with weight', () => {
   const light = estimateShipping(getItem('airpods-pro-2'));
   const heavy = estimateShipping(getItem('kitchenaid-artisan'));

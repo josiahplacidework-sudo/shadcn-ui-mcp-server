@@ -22,6 +22,15 @@ export function priceForNet(item, marketplace, targetNet, options = {}) {
   let low = 0;
   let high = Math.max(10, targetNet * 3 + 100);
 
+  // Widen the bracket until it actually contains the answer. Postage on a heavy item can outrun
+  // a modest target — a 100 lb parcel costs more than a $10 net is worth — and bisecting a
+  // bracket that holds no solution silently converges on `high` and returns it as though it
+  // were one. Net rises with price on every fee model here, so this terminates quickly.
+  for (let i = 0; i < 40; i += 1) {
+    if (calculateProfit(item, marketplace, high, options).net >= targetNet) break;
+    high *= 2;
+  }
+
   for (let i = 0; i < 60; i += 1) {
     const mid = (low + high) / 2;
     if (calculateProfit(item, marketplace, mid, options).net < targetNet) low = mid;
@@ -114,7 +123,11 @@ function reservationFor({ fairNet, quickNet, pressure }) {
   if (pressure <= 1) return fairNet - band * pressure;
 
   const overdue = Math.min(1, pressure - 1);
-  return Math.max(quickNet * 0.67, quickNet - band * overdue * 0.5);
+  // A third below the quick number, written as a distance rather than a ratio. On an item that
+  // nets a loss, `quickNet * 0.67` sits *above* quickNet, so the floor would rise the longer the
+  // listing sat — the opposite of what time pressure is meant to do.
+  const hardFloor = quickNet - Math.abs(quickNet) * 0.33;
+  return Math.max(hardFloor, quickNet - band * overdue * 0.5);
 }
 
 /** Accept at or above the floor, counter within reach of it, decline a fishing expedition. */
@@ -122,7 +135,11 @@ function decide({ offerNet, reservationNet, ratio }) {
   if (offerNet >= reservationNet) return 'accept';
   // A lowball under 45% of the asking price is not a negotiation, it is a fishing expedition.
   if (ratio < 0.45) return 'decline';
-  if (offerNet >= reservationNet * 0.75) return 'counter';
+  // Within a quarter of the floor is close enough to be worth a counter. Measured as a distance
+  // for the same reason as the floor itself: `reservationNet * 0.75` lands above a negative
+  // floor, collapsing the counter band to nothing so every such offer would be declined.
+  const withinReach = reservationNet - Math.abs(reservationNet) * 0.25;
+  if (offerNet >= withinReach) return 'counter';
   return 'decline';
 }
 

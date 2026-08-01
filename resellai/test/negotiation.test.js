@@ -27,6 +27,36 @@ test('priceForNet handles a stepped fee schedule', () => {
   assert.ok(Math.abs(calculateProfit(item, marketplace, price).net - 40) < 1.5);
 });
 
+test('priceForNet widens its bracket when postage outruns the target', () => {
+  // A 100 lb parcel costs far more to ship than a $10 net is worth, so the initial search
+  // bracket (targetNet × 3 + 100) holds no solution. Bisecting it anyway used to return the
+  // upper bound as though it were an answer.
+  const heavy = { ...getItem('nike-dunk-panda'), weightLb: 100, box: 'oversize' };
+  const marketplace = getMarketplace('ebay');
+  const price = priceForNet(heavy, marketplace, 10, { raw: true });
+
+  assert.ok(price > 10 * 3 + 100, 'should have grown past the initial bracket');
+  assert.ok(calculateProfit(heavy, marketplace, price, { raw: true }).net >= 9.5);
+});
+
+test('an overdue listing never raises its floor, even when the item nets a loss', () => {
+  // Fees and postage can exceed what a cheap item sells for. Time pressure must still only ever
+  // lower the floor — a ratio-based clamp moves a negative floor upward.
+  const item = { ...getItem('paperback-lot'), weightLb: 40, box: 'large', comps: [12, 13, 11, 14, 12] };
+  const marketplace = getMarketplace('ebay');
+  const base = { item, marketplace, askPrice: 14, offer: 7, condition: 'good' };
+
+  const fresh = evaluateOffer({ ...base, daysListed: 0 });
+  const overdue = evaluateOffer({ ...base, daysListed: 400 });
+
+  assert.ok(fresh.quickNet < 0, 'precondition: this item nets a loss');
+  assert.ok(
+    overdue.reservationNet <= fresh.reservationNet,
+    `floor rose with age: ${fresh.reservationNet} -> ${overdue.reservationNet}`,
+  );
+  assert.ok(overdue.reservationNet <= overdue.quickNet);
+});
+
 test('a strong offer on a fresh listing is accepted', () => {
   const result = evaluateOffer({
     item: getItem('ps5-disc'),

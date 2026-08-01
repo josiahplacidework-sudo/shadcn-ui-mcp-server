@@ -108,6 +108,9 @@ test('pricing is deterministic for a fixed month', () => {
 
 test('roundPrice produces marketplace-friendly numbers', () => {
   assert.equal(roundPrice(12.4), 12);
+  // The 25–99 band had no coverage, which let a duplicated branch sit in roundPrice unnoticed.
+  assert.equal(roundPrice(47.6), 48);
+  assert.equal(roundPrice(99.4), 99);
   assert.equal(roundPrice(132.2), 130);
   assert.equal(roundPrice(1247), 1250);
   assert.equal(roundPrice(0), 0);

@@ -97,6 +97,21 @@ test('listings carry keywords, hashtags, and specifics', () => {
   assert.ok(listing.bullets.length >= 4);
 });
 
+test('catalog attributes cannot overwrite the derived specifics', () => {
+  const spoofed = {
+    ...getItem('nike-dunk-panda'),
+    attributes: { brand: 'Counterfeit', condition: 'Mint', colour: 'Black / White' },
+  };
+  const listing = generateListing({ item: spoofed, condition: 'good', price: 100 });
+
+  // Condition is the one row a buyer relies on being true, and it comes from the seller's
+  // selection rather than the catalog.
+  assert.equal(listing.specifics.Brand, 'Nike');
+  assert.equal(listing.specifics.Condition, 'Good');
+  // Attributes that do not collide still come through.
+  assert.equal(listing.specifics.Colour, 'Black / White');
+});
+
 test('local-pickup items say so in the shipping section', () => {
   const listing = generateListing({ item: getItem('peloton-bike'), condition: 'good', price: 450 });
   assert.match(listing.description, /Local pickup only/);

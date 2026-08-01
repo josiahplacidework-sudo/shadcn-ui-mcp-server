@@ -26,15 +26,24 @@ const CARRIERS = {
   local: { name: 'Local pickup', note: 'Too large to ship economically — sell locally.' },
 };
 
+/** USPS will not accept a Media Mail parcel over this weight. */
+const MEDIA_MAIL_MAX_LB = 70;
+
 /** Media Mail is dramatically cheaper, so books get their own rate. */
 function mediaMailRate(weightLb) {
   return 4.13 + Math.max(0, Math.ceil(weightLb) - 1) * 0.68;
 }
 
-/** Cheapest sensible carrier for the item's weight and category. */
+/**
+ * Cheapest sensible carrier for the item's weight and category.
+ *
+ * Books qualify for Media Mail only up to the USPS weight limit — a heavy lot falls through to
+ * the ordinary weight-based choice below, because quoting a rate for a service that would be
+ * refused at the counter is worse than quoting a dearer one that ships.
+ */
 function pickCarrier(item) {
   if (item.box === BOX.freight || item.localOnly) return CARRIERS.local;
-  if (item.category === 'books') return CARRIERS.media;
+  if (item.category === 'books' && item.weightLb <= MEDIA_MAIL_MAX_LB) return CARRIERS.media;
   if (item.weightLb >= 20) return CARRIERS.fedex;
   if (item.weightLb >= 5) return CARRIERS.ups;
   return CARRIERS.ground;

@@ -219,10 +219,21 @@ function buildHashtags(item) {
   return [...new Set(tags)].slice(0, 8);
 }
 
+/**
+ * Field names below that are derived from the item and the seller's chosen condition.
+ *
+ * A catalog attribute that title-cases onto one of these would otherwise overwrite it — an
+ * item carrying `condition: 'mint'` would publish "Mint" no matter what the seller actually
+ * selected, which is the one field in the table a buyer relies on being true.
+ */
+const DERIVED_SPECIFICS = ['Brand', 'Condition', 'Category', 'Year', 'Shipping weight'];
+
 /** The structured attribute table marketplaces use to filter search results. */
 function buildSpecifics(item, cond, shipping) {
   const attributes = Object.fromEntries(
-    Object.entries(item.attributes ?? {}).map(([key, value]) => [titleCase(key), value]),
+    Object.entries(item.attributes ?? {})
+      .map(([key, value]) => [titleCase(key), value])
+      .filter(([key]) => !DERIVED_SPECIFICS.includes(key)),
   );
 
   return {

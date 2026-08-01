@@ -77,7 +77,6 @@ function clamp(value, min, max) {
 /** Marketplace-friendly rounding: clean dollars low, multiples of five higher up. */
 export function roundPrice(value) {
   if (!Number.isFinite(value) || value <= 0) return 0;
-  if (value < 25) return Math.round(value);
   if (value < 100) return Math.round(value);
   if (value < 500) return Math.round(value / 5) * 5;
   return Math.round(value / 10) * 10;
