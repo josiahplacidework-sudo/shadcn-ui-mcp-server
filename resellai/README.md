@@ -8,7 +8,8 @@ the core loop it describes: **scan → identify → price → profit → marketp
 
 ## Running it
 
-No dependencies, no build step, no install.
+No dependencies and no install step. The app runs straight from source — the build is optional,
+and only needed to produce the single-file bundles in `dist/`.
 
 Requires Node.js 18 or newer.
 
@@ -146,8 +147,9 @@ Mode, the bundle builder, donate-instead-of-sell advice, the chat assistant, the
 assistant, depreciation and hold-or-sell timing, achievements, dark mode, and the free/Pro gate.
 
 You can upload real photos of your own. They are displayed as the item's thumbnail and drive the
-photo count behind the quality score, though recognition remains simulated. Photos are held in
-memory only — a few phone photos as data URLs would exhaust the localStorage quota and take the
+photo count behind the quality score. Recognition of them stays simulated unless you turn on the
+opt-in real vision path described above, in which case the photo is genuinely identified. Photos
+are held in memory only — a few phone photos as data URLs would exhaust the localStorage quota and take the
 rest of the session's state down with them.
 
 Not built: live camera capture, background removal, barcode scanning, receipt OCR (purchase

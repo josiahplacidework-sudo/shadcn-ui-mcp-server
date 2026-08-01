@@ -173,8 +173,13 @@ ${script}
 // relying on a host page to supply one.
 const headMatch = html.match(/<head>([\s\S]*?)<\/head>/);
 if (!headMatch) throw new Error('app/index.html: could not find the <head> element');
-// Drop the stylesheet link; the CSS is inlined below.
-const head = headMatch[1].replace(/\s*<link\s+rel="stylesheet"[\s\S]*?\/>\s*/g, '\n');
+
+// Drop the stylesheet link; the CSS is inlined below. Matched independently of attribute order,
+// quote style, and whether the tag self-closes, so reformatting index.html cannot quietly leave
+// an external <link> in a build whose entire purpose is to need no external requests.
+const STYLESHEET_LINK_RE =
+  /\s*<link\b(?=[^>]*\brel\s*=\s*["'][^"']*\bstylesheet\b[^"']*["'])[^>]*>\s*/gi;
+const head = headMatch[1].replace(STYLESHEET_LINK_RE, '\n');
 
 const standalone = `<!doctype html>
 <html lang="en">
@@ -192,6 +197,18 @@ ${script}
 </body>
 </html>
 `;
+
+// Both outputs exist to run with no network at all — the Artifact CSP blocks external requests
+// outright, and the standalone build is opened straight from a file:// path. An external
+// reference surviving into either one is a silent failure at exactly the moment it matters, so
+// check rather than trust the transforms above.
+for (const [name, output] of [['resellai.html', page], ['resellai-standalone.html', standalone]]) {
+  const leftover =
+    output.match(STYLESHEET_LINK_RE)?.[0] ?? output.match(/<script\b[^>]*\bsrc\s*=/i)?.[0];
+  if (leftover) {
+    throw new Error(`dist/${name} still references an external file: ${leftover.trim()}`);
+  }
+}
 
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist/resellai.html'), page);
