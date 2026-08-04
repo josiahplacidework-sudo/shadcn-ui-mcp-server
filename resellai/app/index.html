@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#4F46E5" />
+
+    <!--
+      Added to the home screen on iOS, the app launches without Safari's chrome. The short title
+      is separate from the document title because the home screen has room for roughly a dozen
+      characters before it truncates. The status bar stays 'default' rather than translucent, so
+      content always begins below it instead of relying on the safe-area inset resolving.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="ResellAI" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+
+    <title>ResellAI — Take one photo. Find out what it is worth.</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="phone">
+      <div class="status-bar">
+        <span id="clock">9:41</span>
+        <span class="dots">●●●</span>
+        <span class="battery">100%</span>
+      </div>
+
+      <main class="screen" id="screen" aria-live="polite"></main>
+
+      <nav class="tabbar" id="tabbar" aria-label="Primary"></nav>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

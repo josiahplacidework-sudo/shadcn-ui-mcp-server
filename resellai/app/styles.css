@@ -1,0 +1,861 @@
+/* ResellAI design system — tokens taken directly from the PRD.
+ *
+ * Theming is token-level. The light set is the default; the dark set is applied by the viewer's
+ * OS preference, and again by an explicit [data-theme] on the root so an in-app or host toggle
+ * overrides the media query in both directions. Components only ever read tokens, never a theme
+ * selector, so all three paths stay in sync. */
+
+:root {
+  --indigo: #4f46e5;
+  --indigo-soft: #eef2ff;
+  --indigo-deep: #4338ca;
+  --emerald: #10b981;
+  --emerald-soft: #ecfdf5;
+  --amber: #f59e0b;
+  --amber-soft: #fffbeb;
+  --rose: #e11d48;
+  --rose-soft: #fff1f2;
+
+  --bg: #fafafa;
+  --card: #ffffff;
+  --ink: #111827;
+  --ink-2: #374151;
+  --muted: #6b7280;
+  --faint: #9ca3af;
+  --line: #e5e7eb;
+  --line-soft: #f3f4f6;
+
+  --profit: #059669;
+  --loss: #dc2626;
+
+  /* Page ground behind the phone shell, and inks that need a per-theme tweak. */
+  --shell: #e9eaf3;
+  --ink-banner-indigo: #4338ca;
+  --ink-banner-amber: #92400e;
+  --ink-pill-amber: #b45309;
+  --toast-bg: #111827;
+  --toast-ink: #fafafa;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-md: 0 4px 16px rgba(17, 24, 39, 0.08);
+  --shadow-lg: 0 18px 50px rgba(17, 24, 39, 0.16);
+
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* The dark token set, repeated across the three paths that can select it. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1120;
+    --card: #111827;
+    --ink: #f9fafb;
+    --ink-2: #e5e7eb;
+    --muted: #9ca3af;
+    --faint: #6b7280;
+    --line: #1f2937;
+    --line-soft: #172033;
+
+    --indigo-soft: #1e1b4b;
+    --emerald-soft: #052e23;
+    --amber-soft: #2c1f04;
+    --rose-soft: #3f0d1a;
+
+    --profit: #34d399;
+    --loss: #f87171;
+
+    --shell: #05070d;
+    --ink-banner-indigo: #c7d2fe;
+    --ink-banner-amber: #fcd34d;
+    --ink-pill-amber: #f59e0b;
+    --toast-bg: #f9fafb;
+    --toast-ink: #111827;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.6);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b1120;
+  --card: #111827;
+  --ink: #f9fafb;
+  --ink-2: #e5e7eb;
+  --muted: #9ca3af;
+  --faint: #6b7280;
+  --line: #1f2937;
+  --line-soft: #172033;
+
+  --indigo-soft: #1e1b4b;
+  --emerald-soft: #052e23;
+  --amber-soft: #2c1f04;
+  --rose-soft: #3f0d1a;
+
+  --profit: #34d399;
+  --loss: #f87171;
+
+  --shell: #05070d;
+  --ink-banner-indigo: #c7d2fe;
+  --ink-banner-amber: #fcd34d;
+  --ink-pill-amber: #f59e0b;
+  --toast-bg: #f9fafb;
+  --toast-ink: #111827;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* An explicit light choice has to beat the dark media query. */
+:root[data-theme='light'] {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --ink: #111827;
+  --ink-2: #374151;
+  --muted: #6b7280;
+  --faint: #9ca3af;
+  --line: #e5e7eb;
+  --line-soft: #f3f4f6;
+
+  --indigo-soft: #eef2ff;
+  --emerald-soft: #ecfdf5;
+  --amber-soft: #fffbeb;
+  --rose-soft: #fff1f2;
+
+  --profit: #059669;
+  --loss: #dc2626;
+
+  --shell: #e9eaf3;
+  --ink-banner-indigo: #4338ca;
+  --ink-banner-amber: #92400e;
+  --ink-pill-amber: #b45309;
+  --toast-bg: #111827;
+  --toast-ink: #fafafa;
+
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-md: 0 4px 16px rgba(17, 24, 39, 0.08);
+  --shadow-lg: 0 18px 50px rgba(17, 24, 39, 0.16);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--sans);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--shell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* ---------- Phone shell ---------- */
+
+.phone {
+  position: relative;
+  width: 100%;
+  max-width: 430px;
+  height: 100dvh;
+  max-height: 932px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (min-width: 520px) and (min-height: 720px) {
+  body { padding: 24px; }
+  .phone {
+    height: min(900px, calc(100dvh - 48px));
+    border-radius: 44px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(17, 24, 39, 0.12);
+  }
+}
+
+.status-bar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 26px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.status-bar .dots { letter-spacing: 2px; opacity: 0.75; }
+
+/* Battery drawn in CSS rather than set as a glyph — the Apple symbol for it lives in a
+   private-use codepoint that renders as tofu on every non-Apple platform. */
+.status-bar .battery { display: inline-flex; align-items: center; gap: 5px; }
+.status-bar .battery::after {
+  content: '';
+  width: 22px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.9;
+  background:
+    linear-gradient(currentColor 0 0) padding-box no-repeat,
+    linear-gradient(currentColor 0 0) border-box no-repeat;
+  background-size: 100% 100%, 0 0;
+  box-shadow: 2px 0 0 -0.5px currentColor;
+  padding: 1px;
+  background-clip: content-box;
+}
+
+/*
+ * The exact complement of the bezel query above: no simulated frame means we are on a real
+ * handset, which already draws a status bar of its own. A second one under it reads as a bug,
+ * so the simulated bar goes and the safe-area inset takes over its job of holding content clear
+ * of the notch. Added to the home screen on iOS the app fills the display, which is when this
+ * matters. Placed after `.status-bar` deliberately: same specificity, so source order decides.
+ */
+@media (max-width: 519px), (max-height: 719px) {
+  .status-bar { display: none; }
+  .phone { padding-top: env(safe-area-inset-top, 0px); }
+}
+
+.screen {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 20px 120px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+.screen::-webkit-scrollbar { width: 0; }
+
+.view { animation: rise 0.32s var(--ease) both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- Typography ---------- */
+
+h1, h2, h3, h4 { margin: 0; letter-spacing: -0.021em; line-height: 1.22; }
+/* A page title is not four times the weight of the body text around it. The old scale ran 27px
+ * at 700 for every screen heading, which put a shout at the top of a screen whose actual subject
+ * is a number further down. */
+h1 { font-size: 23px; font-weight: 600; }
+h2 { font-size: 16px; font-weight: 600; letter-spacing: -0.012em; }
+h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.006em; }
+p { margin: 0; line-height: 1.55; }
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
+/* Reserved for the one label per screen that genuinely reads as a caption on a figure. Applied
+ * to every section heading, all-caps letterspacing stops being emphasis and becomes texture. */
+.eyebrow-caps { text-transform: uppercase; letter-spacing: 0.075em; font-size: 10.5px; font-weight: 600; }
+.sub { color: var(--muted); font-size: 14px; }
+.tiny { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.profit { color: var(--profit); }
+.loss { color: var(--loss); }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 24px 0 10px;
+}
+.section-head .link { font-size: 13px; font-weight: 500; color: var(--indigo); cursor: pointer; }
+
+/* ---------- Cards ---------- */
+
+/* A card is a container, not an object sitting on the page. The border does the separating and
+ * the shadow is gone — the previous mix of 22px corners and a visible drop shadow made every
+ * list row look like a physical tile floating over the background. */
+.card {
+  background: var(--card);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  border: 1px solid var(--line);
+}
+.card + .card { margin-top: 12px; }
+.card-tight { padding: 14px; }
+
+.row { display: flex; align-items: center; gap: 12px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 4px; }
+.grow { flex: 1; min-width: 0; }
+.wrap { flex-wrap: wrap; }
+.stack > * + * { margin-top: 10px; }
+
+.divider { height: 1px; background: var(--line); margin: 14px -18px; }
+
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Buttons ---------- */
+
+/* `color: inherit` is load-bearing, not tidiness. A <button> takes the UA's `buttontext`, which
+ * does not follow the theme — so the price ladder, which is three buttons, rendered its figures
+ * in near-black on the dark card while every label around them turned light. */
+button { font-family: inherit; cursor: pointer; color: inherit; }
+
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 14px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--indigo);
+  color: #fff;
+  transition: transform 0.16s var(--ease), opacity 0.16s var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-block { display: flex; width: 100%; }
+.btn-ghost { background: var(--indigo-soft); color: var(--indigo); }
+.btn-quiet { background: var(--line-soft); color: var(--ink-2); }
+.btn-emerald { background: var(--emerald); }
+.btn-sm { padding: 9px 15px; font-size: 13px; }
+
+.chip {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.16s var(--ease);
+  white-space: nowrap;
+}
+.chip[aria-pressed='true'] {
+  background: var(--indigo);
+  border-color: var(--indigo);
+  color: #fff;
+}
+.chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
+.chip-row::-webkit-scrollbar { display: none; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--line-soft);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pill-indigo { background: var(--indigo-soft); color: var(--indigo); }
+.pill-emerald { background: var(--emerald-soft); color: var(--profit); }
+.pill-amber { background: var(--amber-soft); color: var(--ink-pill-amber); }
+.pill-rose { background: var(--rose-soft); color: var(--loss); }
+/* ---------- Home ---------- */
+
+/* The purple-gradient card with a big white number and a translucent circle in the corner is
+ * the house style of every generated dashboard, and it was doing real damage here: white on a
+ * mid-indigo gradient made the app's most important figure the hardest thing on screen to read,
+ * and it spent the brand colour on decoration, leaving nothing to mark what is interactive.
+ *
+ * The number is the hero. It gets the size; the surface gets out of the way. */
+.hero {
+  padding: 2px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.hero .big {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.038em;
+  margin: 2px 0 4px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  display: block;
+}
+.hero .note { color: var(--muted); font-size: 13px; }
+
+.scan-cta {
+  width: 100%;
+  border-radius: var(--r-lg);
+  padding: 14px 15px;
+  background: var(--indigo);
+  border: 1px solid var(--indigo);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  text-align: left;
+  transition: transform 0.18s var(--ease);
+}
+.scan-cta:active { transform: scale(0.985); }
+.scan-cta .sub, .scan-cta .tiny { color: rgba(255, 255, 255, 0.72); }
+/* Flat, and inside a solid button rather than a gradient tile inside a white card. The primary
+ * action should look like a button; it was reading as an advertisement for itself. */
+.scan-lens {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.16);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px;
+}
+.stat .v { font-size: 20px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.stat .v .icon { color: var(--muted); }
+
+/* Room value bars */
+.room + .room { margin-top: 12px; }
+.room .bar {
+  height: 5px;
+  background: var(--line-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.room .bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--indigo);
+  animation: grow 0.7s var(--ease) both;
+}
+@keyframes grow { from { width: 0 !important; } }
+
+/* ---------- Item rows ---------- */
+
+.thumb {
+  width: 42px; height: 42px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: var(--line-soft);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.thumb-sm { width: 32px; height: 32px; border-radius: 7px; }
+.thumb-lg { width: 100%; height: 124px; border-radius: var(--r-lg); }
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  color: inherit;
+  border-bottom: 1px solid var(--line-soft);
+}
+.item-row:last-child { border-bottom: none; }
+.item-row .name { font-weight: 500; font-size: 14.5px; }
+.item-row:disabled { opacity: 0.4; }
+/* The affordance, not a piece of punctuation set in the body font at 22px. */
+.chev { color: var(--faint); display: inline-flex; flex: 0 0 auto; }
+
+/* ---------- Scan flow ---------- */
+
+.viewfinder {
+  position: relative;
+  border-radius: var(--r-xl);
+  background: linear-gradient(160deg, #1f2937, #111827);
+  height: 260px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.viewfinder .glyph { color: rgba(255, 255, 255, 0.32); display: grid; place-items: center; }
+.viewfinder .corner {
+  position: absolute;
+  width: 30px; height: 30px;
+  border: 3px solid rgba(255,255,255,0.9);
+}
+.viewfinder .tl { top: 18px; left: 18px; border-right: 0; border-bottom: 0; border-radius: 10px 0 0 0; }
+.viewfinder .tr { top: 18px; right: 18px; border-left: 0; border-bottom: 0; border-radius: 0 10px 0 0; }
+.viewfinder .bl { bottom: 18px; left: 18px; border-right: 0; border-top: 0; border-radius: 0 0 0 10px; }
+.viewfinder .br { bottom: 18px; right: 18px; border-left: 0; border-top: 0; border-radius: 0 0 10px 0; }
+
+.scanline {
+  position: absolute;
+  left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--emerald), transparent);
+  box-shadow: 0 0 18px var(--emerald);
+  animation: sweep 1.5s var(--ease) infinite;
+}
+@keyframes sweep { 0% { top: 8%; } 50% { top: 92%; } 100% { top: 8%; } }
+
+.sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.sample {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 11px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 92px;
+  transition: transform 0.16s var(--ease);
+}
+.sample:active { transform: scale(0.96); }
+.sample .g { color: var(--muted); }
+/* Left-aligned, two lines, clipped at a word boundary. Centred text that truncated mid-word
+ * ("AirPods Pro (2nd generat…") is the clearest sign nobody looked at the screen: the tile was
+ * sized for the grid rather than for the names that actually go in it. */
+.sample .l {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  line-height: 1.32;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Analysis steps */
+.steps { display: flex; flex-direction: column; gap: 14px; }
+.step { display: flex; align-items: center; gap: 12px; opacity: 0.35; transition: opacity 0.3s var(--ease); }
+.step.on { opacity: 1; }
+.step .dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--line);
+  display: grid; place-items: center;
+  font-size: 12px; flex: 0 0 auto;
+}
+.step.on .dot { background: var(--emerald); border-color: var(--emerald); color: #fff; }
+.step .t { font-size: 14px; font-weight: 600; }
+
+/* ---------- Price ladder ---------- */
+
+.ladder { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tier {
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 13px 8px;
+  text-align: center;
+  transition: all 0.18s var(--ease);
+}
+.tier[aria-pressed='true'] {
+  border-color: var(--indigo);
+  background: var(--indigo-soft);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+.tier .v { font-size: 19px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.03em; }
+.tier .k { font-size: 10.5px; color: var(--muted); margin-top: 3px; font-weight: 600; }
+
+.confidence {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.confidence span {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--emerald);
+  animation: grow 0.7s var(--ease) both;
+}
+
+/* Profit breakdown */
+.ledger { font-size: 14px; }
+.ledger .line { display: flex; justify-content: space-between; padding: 7px 0; }
+.ledger .line + .line { border-top: 1px solid var(--line-soft); }
+.ledger .total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 11px; font-weight: 600; font-size: 16px; }
+
+/* Marketplace ranking */
+.mkt { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+.mkt:last-child { border-bottom: none; }
+.mkt .rank {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--line-soft); color: var(--muted);
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 600; flex: 0 0 auto;
+}
+.mkt.top .rank { background: var(--indigo); color: #fff; }
+
+/* Quality score */
+.score-ring {
+  width: 84px; height: 84px; border-radius: 50%;
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+  position: relative;
+}
+.score-ring .v { font-size: 24px; font-weight: 600; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.meter { height: 6px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
+.meter span { display: block; height: 100%; border-radius: 999px; background: var(--indigo); animation: grow 0.7s var(--ease) both; }
+
+/* Listing preview */
+.listing-box {
+  background: var(--line-soft);
+  border-radius: var(--r-md);
+  padding: 14px;
+  font-size: 13.5px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow-y: auto;
+  color: var(--ink-2);
+}
+
+/* Garage sale mode */
+.garage-total {
+  text-align: center;
+  padding: 26px 0 20px;
+}
+.garage-total .v {
+  font-size: 44px;
+  font-weight: 600;
+  font-family: var(--mono);
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  animation: pop 0.45s var(--ease);
+}
+@keyframes pop { from { transform: scale(0.86); opacity: 0.4; } }
+
+/* Chart */
+.chart { display: flex; align-items: flex-end; gap: 6px; height: 110px; }
+.chart .col-b { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.chart .col-b .b {
+  width: 100%;
+  border-radius: 6px 6px 3px 3px;
+  background: var(--indigo);
+  opacity: 0.85;
+  min-height: 4px;
+  animation: rise-b 0.6s var(--ease) both;
+}
+@keyframes rise-b { from { height: 0 !important; } }
+.chart .col-b .l { font-size: 9.5px; color: var(--faint); font-weight: 600; }
+
+/* Chat */
+.bubble {
+  padding: 11px 15px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 84%;
+  white-space: pre-wrap;
+}
+.bubble.me { background: var(--indigo); color: #fff; align-self: flex-end; border-bottom-right-radius: 6px; }
+.bubble.ai { background: var(--line-soft); color: var(--ink); align-self: flex-start; border-bottom-left-radius: 6px; }
+
+/* ---------- Bottom navigation ---------- */
+
+.tabbar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: end;
+  padding: 10px 6px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--line);
+  z-index: 20;
+}
+.tab {
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 0;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 500;
+  transition: color 0.16s var(--ease);
+}
+.tab .i { display: grid; place-items: center; height: 22px; }
+.tab[aria-current='page'] { color: var(--indigo); }
+
+.tab-scan { position: relative; }
+.tab-scan .fab {
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: var(--indigo);
+  color: #fff;
+  display: grid; place-items: center;
+  margin-top: -16px;
+  border: 3px solid var(--card);
+  transition: transform 0.18s var(--ease);
+}
+.tab-scan:active .fab { transform: scale(0.92); }
+
+/* ---------- Toast & sheet ---------- */
+
+.toast {
+  position: absolute;
+  left: 20px; right: 20px; bottom: 104px;
+  background: var(--toast-bg);
+  color: var(--toast-ink);
+  border-radius: var(--r-md);
+  padding: 13px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  z-index: 40;
+  animation: toast-in 0.3s var(--ease);
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(14px); } }
+
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  animation: fade 0.22s var(--ease);
+}
+@keyframes fade { from { opacity: 0; } }
+.sheet {
+  width: 100%;
+  background: var(--card);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 10px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  max-height: 86%;
+  overflow-y: auto;
+  animation: sheet-up 0.32s var(--ease);
+}
+@keyframes sheet-up { from { transform: translateY(100%); } }
+.sheet .grabber {
+  width: 38px; height: 5px; border-radius: 999px;
+  background: var(--line);
+  margin: 0 auto 14px;
+}
+
+/* Toggle */
+.switch {
+  width: 46px; height: 28px;
+  border-radius: 999px;
+  background: var(--line);
+  border: none;
+  position: relative;
+  transition: background 0.2s var(--ease);
+  flex: 0 0 auto;
+}
+.switch[aria-checked='true'] { background: var(--emerald); }
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s var(--ease);
+}
+.switch[aria-checked='true']::after { transform: translateX(18px); }
+
+/* Checkbox row */
+.check {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0;
+  width: 100%;
+  background: none; border: none;
+  text-align: left; color: inherit;
+  font-size: 14px;
+}
+.check .box {
+  width: 21px; height: 21px;
+  border-radius: 7px;
+  border: 1.8px solid var(--line);
+  display: grid; place-items: center;
+  font-size: 12px; color: #fff;
+  flex: 0 0 auto;
+  transition: all 0.16s var(--ease);
+}
+.check[aria-checked='true'] .box { background: var(--emerald); border-color: var(--emerald); }
+
+.empty {
+  text-align: center;
+  padding: 46px 20px;
+  color: var(--muted);
+}
+.empty .g { font-size: 44px; display: block; margin-bottom: 12px; opacity: 0.55; }
+
+.banner {
+  border-radius: var(--r-md);
+  padding: 13px 15px;
+  font-size: 13px;
+  line-height: 1.55;
+  border: 1px solid transparent;
+}
+.banner-indigo { background: var(--line-soft); color: var(--ink-2); border-color: var(--line); }
+.banner-amber { background: var(--amber-soft); color: var(--ink-banner-amber); border-color: rgba(245,158,11,0.25); }
+.banner-emerald { background: var(--emerald-soft); color: var(--profit); border-color: rgba(16,185,129,0.22); }
+
+input[type='text'], input[type='password'], textarea, select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+}
+input[type='text']:focus, input[type='password']:focus, textarea:focus { outline: 2px solid var(--indigo); outline-offset: -1px; }
+
+:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; border-radius: 6px; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- Icons ---------- */
+
+/* Every icon is a stroked 24×24 path inheriting currentColor, so an icon takes its colour from
+ * whatever it sits inside — a muted list row, a white button, a dark viewfinder — without a
+ * second asset. `vertical-align` keeps one on the text baseline when it appears inline in a
+ * sentence, which is where the old emoji sat by default and these otherwise would not. */
+.icon {
+  flex: 0 0 auto;
+  vertical-align: -0.16em;
+}
+.ach-icon { color: var(--muted); display: inline-flex; }
+.ach.done .ach-icon { color: var(--profit); }

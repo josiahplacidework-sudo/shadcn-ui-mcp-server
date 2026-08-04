@@ -1,0 +1,16 @@
+{
+  "name": "resellai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ResellAI — AI-powered resale assistant prototype. Scan an item, get its value, and publish a listing.",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "license": "MIT"
+}
