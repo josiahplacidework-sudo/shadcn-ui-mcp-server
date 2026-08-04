@@ -11,21 +11,21 @@
  */
 
 export const CATEGORIES = {
-  sneakers: { label: 'Sneakers', glyph: '👟', room: 'Closet' },
-  gaming: { label: 'Gaming', glyph: '🎮', room: 'Office' },
-  electronics: { label: 'Electronics', glyph: '🎧', room: 'Office' },
-  camera: { label: 'Cameras', glyph: '📷', room: 'Office' },
-  furniture: { label: 'Furniture', glyph: '🪑', room: 'Living room' },
-  apparel: { label: 'Clothing', glyph: '🧥', room: 'Closet' },
-  appliance: { label: 'Kitchen', glyph: '🍳', room: 'Kitchen' },
-  sporting: { label: 'Sporting goods', glyph: '🚲', room: 'Garage' },
-  cards: { label: 'Trading cards', glyph: '🃏', room: 'Storage' },
-  luxury: { label: 'Luxury', glyph: '👜', room: 'Closet' },
-  instrument: { label: 'Instruments', glyph: '🎸', room: 'Office' },
-  tools: { label: 'Tools', glyph: '🔧', room: 'Garage' },
-  fitness: { label: 'Fitness', glyph: '🏋️', room: 'Garage' },
-  books: { label: 'Books', glyph: '📚', room: 'Storage' },
-  toys: { label: 'Toys', glyph: '🧸', room: 'Bedroom' },
+  sneakers: { label: 'Sneakers', room: 'Closet' },
+  gaming: { label: 'Gaming', room: 'Office' },
+  electronics: { label: 'Electronics', room: 'Office' },
+  camera: { label: 'Cameras', room: 'Office' },
+  furniture: { label: 'Furniture', room: 'Living room' },
+  apparel: { label: 'Clothing', room: 'Closet' },
+  appliance: { label: 'Kitchen', room: 'Kitchen' },
+  sporting: { label: 'Sporting goods', room: 'Garage' },
+  cards: { label: 'Trading cards', room: 'Storage' },
+  luxury: { label: 'Luxury', room: 'Closet' },
+  instrument: { label: 'Instruments', room: 'Office' },
+  tools: { label: 'Tools', room: 'Garage' },
+  fitness: { label: 'Fitness', room: 'Garage' },
+  books: { label: 'Books', room: 'Storage' },
+  toys: { label: 'Toys', room: 'Bedroom' },
 };
 
 /** Shipping profiles drive the rate table in engine/shipping.js. */
@@ -340,5 +340,5 @@ export function getItem(id) {
 
 /** Category metadata for an item, falling back to a generic entry for unknown categories. */
 export function categoryOf(item) {
-  return CATEGORIES[item.category] ?? { label: item.category, glyph: '📦', room: 'Storage' };
+  return CATEGORIES[item.category] ?? { label: item.category, room: 'Storage' };
 }

@@ -17,7 +17,6 @@ export const MARKETPLACES = [
   {
     id: 'ebay',
     name: 'eBay',
-    glyph: '🏷️',
     /** 13.25% final value fee plus a fixed per-order charge. */
     fee: (price) => price * 0.1325 + 0.4,
     feeLabel: '13.25% + $0.40',
@@ -37,7 +36,6 @@ export const MARKETPLACES = [
   {
     id: 'facebook',
     name: 'Facebook Marketplace',
-    glyph: '🤝',
     /** No fee on local pickup sales. */
     fee: () => 0,
     feeLabel: 'No fee (local)',
@@ -58,7 +56,6 @@ export const MARKETPLACES = [
   {
     id: 'mercari',
     name: 'Mercari',
-    glyph: '📦',
     /** 10% selling fee plus 2.9% + $0.50 processing. */
     fee: (price) => price * 0.129 + 0.5,
     feeLabel: '10% + 2.9% + $0.50',
@@ -78,7 +75,6 @@ export const MARKETPLACES = [
   {
     id: 'poshmark',
     name: 'Poshmark',
-    glyph: '👗',
     /** Flat $2.95 under $15, otherwise 20%. */
     fee: (price) => (price < 15 ? 2.95 : price * 0.2),
     feeLabel: '20% (flat $2.95 under $15)',
@@ -95,7 +91,6 @@ export const MARKETPLACES = [
   {
     id: 'offerup',
     name: 'OfferUp',
-    glyph: '📍',
     fee: () => 0,
     feeLabel: 'No fee (local)',
     /** Heavier haggling than Facebook and a smaller audience. */
@@ -115,7 +110,6 @@ export const MARKETPLACES = [
   {
     id: 'craigslist',
     name: 'Craigslist',
-    glyph: '📄',
     fee: () => 0,
     feeLabel: 'No fee',
     /** Smallest audience and the most aggressive negotiation. */
@@ -135,7 +129,6 @@ export const MARKETPLACES = [
   {
     id: 'stockx',
     name: 'StockX',
-    glyph: '📈',
     /** ~9% transaction fee plus 3% payment processing. */
     fee: (price) => price * 0.12,
     feeLabel: '9% + 3% processing',
@@ -154,7 +147,6 @@ export const MARKETPLACES = [
   {
     id: 'goat',
     name: 'GOAT',
-    glyph: '🐐',
     /** 9.5% commission plus 2.9% processing and a $5 seller fee. */
     fee: (price) => price * 0.124 + 5,
     feeLabel: '9.5% + 2.9% + $5',

@@ -80,7 +80,7 @@ try {
  *
  * Deliberately in memory only. Data URLs for a handful of phone photos run to several megabytes
  * and would blow the localStorage quota on the first save, taking the rest of the session's
- * state with it. Thumbnails fall back to the category glyph once a session ends.
+ * state with it. Thumbnails fall back to the category icon once a session ends.
  */
 const photoStore = new Map();
 
@@ -212,7 +212,7 @@ const esc = (s) =>
 const pct = (n) => `${Math.round(n * 100)}%`;
 
 /** The category icon for an item, at a given rendered size. */
-const glyphOf = (item, size = 22) => categoryIcon(item.category, size);
+const iconFor = (item, size = 22) => categoryIcon(item.category, size);
 
 /**
  * Thumbnail markup for an item, using the user's own photo when they uploaded one.
@@ -228,7 +228,7 @@ function thumbFor(item, key, extraClass = '') {
   // No per-item tint behind the icon. A different pastel for every row made the list read as
   // fifteen unrelated things rather than one inventory, and it competed with the only colour in
   // the app that carries meaning: profit and loss on the numbers to the right.
-  return `<span class="${classes}">${glyphOf(item, extraClass.includes('thumb-lg') ? 40 : 22)}</span>`;
+  return `<span class="${classes}">${iconFor(item, extraClass.includes('thumb-lg') ? 40 : 22)}</span>`;
 }
 
 function toast(message) {
@@ -449,7 +449,7 @@ function alertCard(alert) {
   // alerts made a list of two things look like two unrelated announcements.
   return `
     <div class="item-row">
-      <span class="thumb">${glyphOf(alert.item)}</span>
+      <span class="thumb">${iconFor(alert.item)}</span>
       <span class="grow col">
         <span class="name truncate">${esc(alert.item.name)}</span>
         <span class="tiny">${up ? 'Now may be the best time to sell' : 'Value is drifting down — consider listing soon'}</span>
@@ -612,7 +612,7 @@ function viewScan() {
     <div class="sample-grid">
       ${CATALOG.map((item) => `
         <button class="sample" data-act="scan" data-arg="${item.id}" ${gated ? 'disabled' : ''}>
-          <span class="g">${glyphOf(item, 20)}</span>
+          <span class="g">${iconFor(item, 20)}</span>
           <span class="l">${esc(shortName(item))}</span>
         </button>
       `).join('')}
@@ -1304,7 +1304,7 @@ function viewBundle() {
       <div class="divider"></div>
       ${analysis.items.map((entry) => `
         <div class="row" style="padding:7px 0;">
-          <span class="thumb thumb-sm">${glyphOf(entry.item, 17)}</span>
+          <span class="thumb thumb-sm">${iconFor(entry.item, 17)}</span>
           <span class="grow tiny truncate" style="color:var(--ink-2);font-weight:600;">${esc(entry.item.name)}</span>
           <span class="num tiny">${money(entry.fair)}</span>
         </div>
@@ -1348,7 +1348,7 @@ function viewGarage() {
           const item = getItem(s.itemId);
           return `
             <div class="item-row">
-              <span class="thumb">${glyphOf(item)}</span>
+              <span class="thumb">${iconFor(item)}</span>
               <span class="grow col">
                 <span class="name truncate">${esc(item.name)}</span>
                 <span class="tiny">${esc(getCondition(s.condition).label)}</span>
@@ -1440,7 +1440,7 @@ function viewAnalytics() {
         const days = ranked[0] ? expectedDays(ranked[0].marketplace, entry.item, 'fair') : null;
         return `
           <div class="item-row">
-            <span class="thumb">${glyphOf(entry.item)}</span>
+            <span class="thumb">${iconFor(entry.item)}</span>
             <span class="grow col">
               <span class="name truncate">${esc(entry.item.name)}</span>
               <span class="tiny">${days ? `Typically sells in ~${days} days` : 'No marketplace fit'}</span>
@@ -1460,12 +1460,12 @@ function viewProfile() {
   const earned = sold.reduce((sum, e) => sum + (e.soldFor ?? 0), 0);
 
   const achievements = [
-    { id: 'first', label: 'First Sale', glyph: 'spark', done: sold.length >= 1 },
-    { id: 'thousand', label: '$1,000 Earned', glyph: 'trophy', done: earned >= 1000 },
-    { id: 'hundred', label: '100 Items Sold', glyph: 'check', done: sold.length >= 100 },
-    { id: 'garage', label: 'Garage Cleared', glyph: 'cart', done: (state.garage.scanned?.length ?? 0) >= 5 },
-    { id: 'closet', label: 'Closet Champion', glyph: 'apparel', done: state.inventory.filter((e) => e.room === 'Closet').length >= 3 },
-    { id: 'power', label: 'Power Seller', glyph: 'spark', done: sold.length >= 25 },
+    { id: 'first', label: 'First Sale', iconName: 'spark', done: sold.length >= 1 },
+    { id: 'thousand', label: '$1,000 Earned', iconName: 'trophy', done: earned >= 1000 },
+    { id: 'hundred', label: '100 Items Sold', iconName: 'check', done: sold.length >= 100 },
+    { id: 'garage', label: 'Garage Cleared', iconName: 'cart', done: (state.garage.scanned?.length ?? 0) >= 5 },
+    { id: 'closet', label: 'Closet Champion', iconName: 'apparel', done: state.inventory.filter((e) => e.room === 'Closet').length >= 3 },
+    { id: 'power', label: 'Power Seller', iconName: 'spark', done: sold.length >= 25 },
   ];
 
   return `
@@ -1505,7 +1505,7 @@ function viewProfile() {
       <div class="row wrap" style="gap:10px;">
         ${achievements.map((a) => `
           <div class="col" style="align-items:center;width:calc(33.33% - 7px);opacity:${a.done ? 1 : 0.35};">
-            <span class="ach-icon">${icon(a.glyph, 24)}</span>
+            <span class="ach-icon">${icon(a.iconName, 24)}</span>
             <span class="tiny" style="text-align:center;font-weight:600;">${a.label}</span>
           </div>
         `).join('')}
