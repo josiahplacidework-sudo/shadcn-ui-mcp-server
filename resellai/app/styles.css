@@ -36,10 +36,10 @@
   --toast-bg: #111827;
   --toast-ink: #fafafa;
 
-  --r-sm: 10px;
-  --r-md: 16px;
-  --r-lg: 22px;
-  --r-xl: 30px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
 
   --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
   --shadow-md: 0 4px 16px rgba(17, 24, 39, 0.08);
@@ -257,19 +257,24 @@ body {
 
 /* ---------- Typography ---------- */
 
-h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; line-height: 1.2; }
-h1 { font-size: 27px; }
-h2 { font-size: 20px; }
-h3 { font-size: 16px; }
+h1, h2, h3, h4 { margin: 0; letter-spacing: -0.021em; line-height: 1.22; }
+/* A page title is not four times the weight of the body text around it. The old scale ran 27px
+ * at 700 for every screen heading, which put a shout at the top of a screen whose actual subject
+ * is a number further down. */
+h1 { font-size: 23px; font-weight: 600; }
+h2 { font-size: 16px; font-weight: 600; letter-spacing: -0.012em; }
+h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.006em; }
 p { margin: 0; line-height: 1.55; }
 
 .eyebrow {
   font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--muted);
 }
+/* Reserved for the one label per screen that genuinely reads as a caption on a figure. Applied
+ * to every section heading, all-caps letterspacing stops being emphasis and becomes texture. */
+.eyebrow-caps { text-transform: uppercase; letter-spacing: 0.075em; font-size: 10.5px; font-weight: 600; }
 .sub { color: var(--muted); font-size: 14px; }
 .tiny { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
@@ -281,17 +286,19 @@ p { margin: 0; line-height: 1.55; }
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin: 26px 0 12px;
+  margin: 24px 0 10px;
 }
-.section-head .link { font-size: 13px; font-weight: 600; color: var(--indigo); cursor: pointer; }
+.section-head .link { font-size: 13px; font-weight: 500; color: var(--indigo); cursor: pointer; }
 
 /* ---------- Cards ---------- */
 
+/* A card is a container, not an object sitting on the page. The border does the separating and
+ * the shadow is gone — the previous mix of 22px corners and a visible drop shadow made every
+ * list row look like a physical tile floating over the background. */
 .card {
   background: var(--card);
   border-radius: var(--r-lg);
-  padding: 18px;
-  box-shadow: var(--shadow-sm);
+  padding: 16px;
   border: 1px solid var(--line);
 }
 .card + .card { margin-top: 12px; }
@@ -310,14 +317,17 @@ p { margin: 0; line-height: 1.55; }
 
 /* ---------- Buttons ---------- */
 
-button { font-family: inherit; cursor: pointer; }
+/* `color: inherit` is load-bearing, not tidiness. A <button> takes the UA's `buttontext`, which
+ * does not follow the theme — so the price ladder, which is three buttons, rendered its figures
+ * in near-black on the dark card while every label around them turned light. */
+button { font-family: inherit; cursor: pointer; color: inherit; }
 
 .btn {
   border: none;
   border-radius: 999px;
   padding: 14px 22px;
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
   background: var(--indigo);
   color: #fff;
   transition: transform 0.16s var(--ease), opacity 0.16s var(--ease);
@@ -360,7 +370,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   background: var(--line-soft);
   color: var(--muted);
   white-space: nowrap;
@@ -371,56 +381,51 @@ button { font-family: inherit; cursor: pointer; }
 .pill-rose { background: var(--rose-soft); color: var(--loss); }
 /* ---------- Home ---------- */
 
+/* The purple-gradient card with a big white number and a translucent circle in the corner is
+ * the house style of every generated dashboard, and it was doing real damage here: white on a
+ * mid-indigo gradient made the app's most important figure the hardest thing on screen to read,
+ * and it spent the brand colour on decoration, leaving nothing to mark what is interactive.
+ *
+ * The number is the hero. It gets the size; the surface gets out of the way. */
 .hero {
-  background: linear-gradient(150deg, var(--indigo) 0%, #6366f1 45%, #7c3aed 100%);
-  border-radius: var(--r-xl);
-  padding: 24px;
-  color: #fff;
-  box-shadow: 0 14px 34px rgba(79, 70, 229, 0.32);
-  position: relative;
-  overflow: hidden;
+  padding: 2px 0 18px;
+  border-bottom: 1px solid var(--line);
 }
-.hero::after {
-  content: '';
-  position: absolute;
-  inset: auto -40px -70px auto;
-  width: 200px; height: 200px;
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 50%;
-}
-.hero .eyebrow { color: rgba(255, 255, 255, 0.82); }
 .hero .big {
-  font-size: 44px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  margin: 6px 0 2px;
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.038em;
+  margin: 2px 0 4px;
   font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  display: block;
 }
-.hero .note { color: rgba(255, 255, 255, 0.86); font-size: 13px; position: relative; z-index: 1; }
+.hero .note { color: var(--muted); font-size: 13px; }
 
 .scan-cta {
   width: 100%;
-  border-radius: var(--r-xl);
-  padding: 22px;
-  background: var(--card);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 14px 15px;
+  background: var(--indigo);
+  border: 1px solid var(--indigo);
+  color: #fff;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 13px;
   text-align: left;
   transition: transform 0.18s var(--ease);
 }
-.scan-cta:active { transform: scale(0.98); }
+.scan-cta:active { transform: scale(0.985); }
+.scan-cta .sub, .scan-cta .tiny { color: rgba(255, 255, 255, 0.72); }
+/* Flat, and inside a solid button rather than a gradient tile inside a white card. The primary
+ * action should look like a button; it was reading as an advertisement for itself. */
 .scan-lens {
-  width: 56px; height: 56px;
-  border-radius: 18px;
-  background: linear-gradient(145deg, var(--indigo), #7c3aed);
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.16);
   display: grid;
   place-items: center;
-  font-size: 26px;
   flex: 0 0 auto;
-  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.35);
 }
 
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -430,13 +435,14 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: var(--r-md);
   padding: 14px;
 }
-.stat .v { font-size: 22px; font-weight: 750; font-family: var(--mono); letter-spacing: -0.03em; }
-.stat .k { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.stat .v { font-size: 20px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.stat .v .icon { color: var(--muted); }
 
 /* Room value bars */
 .room + .room { margin-top: 12px; }
 .room .bar {
-  height: 8px;
+  height: 5px;
   background: var(--line-soft);
   border-radius: 999px;
   overflow: hidden;
@@ -446,7 +452,7 @@ button { font-family: inherit; cursor: pointer; }
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--indigo), #818cf8);
+  background: var(--indigo);
   animation: grow 0.7s var(--ease) both;
 }
 @keyframes grow { from { width: 0 !important; } }
@@ -454,15 +460,17 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- Item rows ---------- */
 
 .thumb {
-  width: 52px; height: 52px;
-  border-radius: 14px;
+  width: 42px; height: 42px;
+  border-radius: 9px;
   display: grid;
   place-items: center;
-  font-size: 25px;
   flex: 0 0 auto;
   background: var(--line-soft);
+  color: var(--muted);
+  border: 1px solid var(--line);
 }
-.thumb-lg { width: 100%; height: 156px; border-radius: var(--r-lg); font-size: 66px; }
+.thumb-sm { width: 32px; height: 32px; border-radius: 7px; }
+.thumb-lg { width: 100%; height: 124px; border-radius: var(--r-lg); }
 
 .item-row {
   display: flex;
@@ -477,7 +485,10 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 1px solid var(--line-soft);
 }
 .item-row:last-child { border-bottom: none; }
-.item-row .name { font-weight: 620; font-size: 14.5px; }
+.item-row .name { font-weight: 500; font-size: 14.5px; }
+.item-row:disabled { opacity: 0.4; }
+/* The affordance, not a piece of punctuation set in the body font at 22px. */
+.chev { color: var(--faint); display: inline-flex; flex: 0 0 auto; }
 
 /* ---------- Scan flow ---------- */
 
@@ -491,7 +502,7 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
   border: 1px solid var(--line);
 }
-.viewfinder .glyph { font-size: 84px; filter: drop-shadow(0 10px 22px rgba(0,0,0,0.45)); }
+.viewfinder .glyph { color: rgba(255, 255, 255, 0.32); display: grid; place-items: center; }
 .viewfinder .corner {
   position: absolute;
   width: 30px; height: 30px;
@@ -513,19 +524,33 @@ button { font-family: inherit; cursor: pointer; }
 
 .sample-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .sample {
+  text-align: left;
   border: 1px solid var(--line);
   background: var(--card);
   border-radius: var(--r-md);
-  padding: 12px 6px;
+  padding: 11px 10px 10px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 92px;
   transition: transform 0.16s var(--ease);
 }
-.sample:active { transform: scale(0.95); }
-.sample .g { font-size: 27px; }
-.sample .l { font-size: 10.5px; color: var(--muted); text-align: center; line-height: 1.3; font-weight: 600; }
+.sample:active { transform: scale(0.96); }
+.sample .g { color: var(--muted); }
+/* Left-aligned, two lines, clipped at a word boundary. Centred text that truncated mid-word
+ * ("AirPods Pro (2nd generat…") is the clearest sign nobody looked at the screen: the tile was
+ * sized for the grid rather than for the names that actually go in it. */
+.sample .l {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  line-height: 1.32;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 /* Analysis steps */
 .steps { display: flex; flex-direction: column; gap: 14px; }
@@ -556,7 +581,7 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--indigo-soft);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
-.tier .v { font-size: 19px; font-weight: 760; font-family: var(--mono); letter-spacing: -0.03em; }
+.tier .v { font-size: 19px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.03em; }
 .tier .k { font-size: 10.5px; color: var(--muted); margin-top: 3px; font-weight: 600; }
 
 .confidence {
@@ -567,7 +592,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .confidence span {
   display: block; height: 100%; border-radius: 999px;
-  background: linear-gradient(90deg, var(--emerald), #34d399);
+  background: var(--emerald);
   animation: grow 0.7s var(--ease) both;
 }
 
@@ -575,7 +600,7 @@ button { font-family: inherit; cursor: pointer; }
 .ledger { font-size: 14px; }
 .ledger .line { display: flex; justify-content: space-between; padding: 7px 0; }
 .ledger .line + .line { border-top: 1px solid var(--line-soft); }
-.ledger .total { border-top: 2px solid var(--line); margin-top: 4px; padding-top: 11px; font-weight: 750; font-size: 16px; }
+.ledger .total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 11px; font-weight: 600; font-size: 16px; }
 
 /* Marketplace ranking */
 .mkt { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
@@ -584,7 +609,7 @@ button { font-family: inherit; cursor: pointer; }
   width: 26px; height: 26px; border-radius: 50%;
   background: var(--line-soft); color: var(--muted);
   display: grid; place-items: center;
-  font-size: 12px; font-weight: 750; flex: 0 0 auto;
+  font-size: 12px; font-weight: 600; flex: 0 0 auto;
 }
 .mkt.top .rank { background: var(--indigo); color: #fff; }
 
@@ -595,7 +620,7 @@ button { font-family: inherit; cursor: pointer; }
   flex: 0 0 auto;
   position: relative;
 }
-.score-ring .v { font-size: 24px; font-weight: 800; font-family: var(--mono); }
+.score-ring .v { font-size: 24px; font-weight: 600; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .meter { height: 6px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
 .meter span { display: block; height: 100%; border-radius: 999px; background: var(--indigo); animation: grow 0.7s var(--ease) both; }
 
@@ -618,14 +643,12 @@ button { font-family: inherit; cursor: pointer; }
   padding: 26px 0 20px;
 }
 .garage-total .v {
-  font-size: 54px;
-  font-weight: 820;
+  font-size: 44px;
+  font-weight: 600;
   font-family: var(--mono);
   letter-spacing: -0.045em;
-  background: linear-gradient(120deg, var(--indigo), var(--emerald));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
   animation: pop 0.45s var(--ease);
 }
 @keyframes pop { from { transform: scale(0.86); opacity: 0.4; } }
@@ -636,7 +659,8 @@ button { font-family: inherit; cursor: pointer; }
 .chart .col-b .b {
   width: 100%;
   border-radius: 6px 6px 3px 3px;
-  background: linear-gradient(180deg, var(--indigo), #818cf8);
+  background: var(--indigo);
+  opacity: 0.85;
   min-height: 4px;
   animation: rise-b 0.6s var(--ease) both;
 }
@@ -680,23 +704,21 @@ button { font-family: inherit; cursor: pointer; }
   padding: 6px 0;
   color: var(--faint);
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 500;
   transition: color 0.16s var(--ease);
 }
-.tab .i { font-size: 19px; line-height: 1; }
+.tab .i { display: grid; place-items: center; height: 22px; }
 .tab[aria-current='page'] { color: var(--indigo); }
 
 .tab-scan { position: relative; }
 .tab-scan .fab {
-  width: 54px; height: 54px;
+  width: 46px; height: 46px;
   border-radius: 50%;
-  background: linear-gradient(145deg, var(--indigo), #7c3aed);
+  background: var(--indigo);
   color: #fff;
   display: grid; place-items: center;
-  font-size: 24px;
-  margin-top: -26px;
-  box-shadow: 0 8px 22px rgba(79, 70, 229, 0.45);
-  border: 4px solid var(--card);
+  margin-top: -16px;
+  border: 3px solid var(--card);
   transition: transform 0.18s var(--ease);
 }
 .tab-scan:active .fab { transform: scale(0.92); }
@@ -801,7 +823,7 @@ button { font-family: inherit; cursor: pointer; }
   line-height: 1.55;
   border: 1px solid transparent;
 }
-.banner-indigo { background: var(--indigo-soft); color: var(--ink-banner-indigo); border-color: rgba(79,70,229,0.18); }
+.banner-indigo { background: var(--line-soft); color: var(--ink-2); border-color: var(--line); }
 .banner-amber { background: var(--amber-soft); color: var(--ink-banner-amber); border-color: rgba(245,158,11,0.25); }
 .banner-emerald { background: var(--emerald-soft); color: var(--profit); border-color: rgba(16,185,129,0.22); }
 
@@ -824,3 +846,16 @@ input[type='text']:focus, input[type='password']:focus, textarea:focus { outline
   padding: 0; margin: -1px; overflow: hidden;
   clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
+
+/* ---------- Icons ---------- */
+
+/* Every icon is a stroked 24×24 path inheriting currentColor, so an icon takes its colour from
+ * whatever it sits inside — a muted list row, a white button, a dark viewfinder — without a
+ * second asset. `vertical-align` keeps one on the text baseline when it appears inline in a
+ * sentence, which is where the old emoji sat by default and these otherwise would not. */
+.icon {
+  flex: 0 0 auto;
+  vertical-align: -0.16em;
+}
+.ach-icon { color: var(--muted); display: inline-flex; }
+.ach.done .ach-icon { color: var(--profit); }

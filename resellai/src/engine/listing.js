@@ -228,12 +228,24 @@ function buildHashtags(item) {
  */
 const DERIVED_SPECIFICS = ['Brand', 'Condition', 'Category', 'Year', 'Shipping weight'];
 
+/**
+ * A field name reduced to letters and digits, for comparison only.
+ *
+ * Matching the title-cased name directly is too brittle to protect anything: a catalog attribute
+ * can arrive as `shippingWeight`, `shipping_weight`, or `Shipping Weight`, and `titleCase` maps
+ * those onto three different strings, only one of which is in the list above. The near-misses
+ * used to survive the filter and publish a second, contradictory shipping row beside the real
+ * one. What matters is whether two names refer to the same field, not how they were spelled.
+ */
+const canonicalSpecific = (key) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+const DERIVED_SPECIFIC_KEYS = new Set(DERIVED_SPECIFICS.map(canonicalSpecific));
+
 /** The structured attribute table marketplaces use to filter search results. */
 function buildSpecifics(item, cond, shipping) {
   const attributes = Object.fromEntries(
     Object.entries(item.attributes ?? {})
       .map(([key, value]) => [titleCase(key), value])
-      .filter(([key]) => !DERIVED_SPECIFICS.includes(key)),
+      .filter(([key]) => !DERIVED_SPECIFIC_KEYS.has(canonicalSpecific(key))),
   );
 
   return {

@@ -8,6 +8,7 @@
 
 import { CATALOG, CATEGORIES, categoryOf, getItem } from '../src/data/catalog.js';
 import { cameraSupported, captureFrame, describeCameraError, startCamera, stopCamera } from './camera.js';
+import { categoryIcon, icon } from './icons.js';
 import {
   analyseBundle,
   analyseDepreciation,
@@ -210,7 +211,8 @@ const esc = (s) =>
 
 const pct = (n) => `${Math.round(n * 100)}%`;
 
-const glyphOf = (item) => categoryOf(item).glyph;
+/** The category icon for an item, at a given rendered size. */
+const glyphOf = (item, size = 22) => categoryIcon(item.category, size);
 
 /**
  * Thumbnail markup for an item, using the user's own photo when they uploaded one.
@@ -223,13 +225,10 @@ function thumbFor(item, key, extraClass = '') {
   if (photo) {
     return `<span class="${classes}" style="background-image:url('${photo}');background-size:cover;background-position:center;"></span>`;
   }
-  return `<span class="${classes}" style="background:${tint(item)}">${glyphOf(item)}</span>`;
-}
-
-function tint(item) {
-  // A stable pastel per item so thumbnails are distinguishable without any image assets.
-  const hue = hashString(item.id) % 360;
-  return `linear-gradient(145deg, hsl(${hue} 70% 92%), hsl(${(hue + 40) % 360} 70% 86%))`;
+  // No per-item tint behind the icon. A different pastel for every row made the list read as
+  // fifteen unrelated things rather than one inventory, and it competed with the only colour in
+  // the app that carries meaning: profit and loss on the numbers to the right.
+  return `<span class="${classes}">${glyphOf(item, extraClass.includes('thumb-lg') ? 40 : 22)}</span>`;
 }
 
 function toast(message) {
@@ -324,11 +323,11 @@ function render() {
 }
 
 const TABS = [
-  { id: 'home', icon: '🏠', label: 'Home' },
-  { id: 'inventory', icon: '📋', label: 'Inventory' },
-  { id: 'scan', icon: '📸', label: 'Scan', center: true },
-  { id: 'analytics', icon: '📊', label: 'Analytics' },
-  { id: 'profile', icon: '👤', label: 'Profile' },
+  { id: 'home', icon: 'home', label: 'Home' },
+  { id: 'inventory', icon: 'inventory', label: 'Inventory' },
+  { id: 'scan', icon: 'camera', label: 'Scan', center: true },
+  { id: 'analytics', icon: 'analytics', label: 'Analytics' },
+  { id: 'profile', icon: 'profile', label: 'Profile' },
 ];
 
 /** Redraws the bottom bar, mapping sub-screens back to their owning tab. */
@@ -338,12 +337,12 @@ function renderTabs() {
   $('#tabbar').innerHTML = TABS.map((tab) => {
     if (tab.center) {
       return `<button class="tab tab-scan" data-act="go" data-arg="scan" aria-label="Scan an item">
-        <span class="fab">📸</span>
+        <span class="fab">${icon('camera', 24)}</span>
       </button>`;
     }
     return `<button class="tab" data-act="go" data-arg="${tab.id}"
       ${active === tab.id ? 'aria-current="page"' : ''}>
-      <span class="i">${tab.icon}</span><span>${tab.label}</span>
+      <span class="i">${icon(tab.icon, 22)}</span><span>${tab.label}</span>
     </button>`;
   }).join('');
 }
@@ -367,12 +366,9 @@ function viewHome() {
   const recent = [...state.inventory].sort((a, b) => b.date - a.date).slice(0, 3).map(inventoryEntry);
 
   return `
-    <div class="row-between" style="margin: 8px 0 18px;">
-      <div>
-        <div class="eyebrow">${greeting()}</div>
-        <h1>Your home is worth money</h1>
-      </div>
-      <button class="btn btn-ghost btn-sm" data-act="go" data-arg="chat" aria-label="Ask the assistant">💬</button>
+    <div class="row-between" style="margin: 10px 0 16px;">
+      <h1>${greeting()}</h1>
+      <button class="btn btn-quiet btn-sm" data-act="go" data-arg="chat" aria-label="Ask the assistant">${icon('chat', 18)}</button>
     </div>
 
     <div class="hero">
@@ -381,21 +377,21 @@ function viewHome() {
       <div class="note">Across ${active.length} scanned item${active.length === 1 ? '' : 's'} · ${money(earned)} already earned</div>
     </div>
 
-    <div style="margin-top: 14px;">
+    <div style="margin-top: 16px;">
       <button class="scan-cta" data-act="go" data-arg="scan">
-        <span class="scan-lens">📸</span>
+        <span class="scan-lens">${icon('camera', 26)}</span>
         <span class="grow">
-          <span style="display:block;font-size:17px;font-weight:700;">Scan Something</span>
-          <span class="tiny">Point, shoot, and find out what it is worth</span>
+          <span style="display:block;font-size:15px;font-weight:600;">Scan an item</span>
+          <span class="tiny">Find out what it is worth</span>
         </span>
-        <span style="font-size:22px;color:var(--faint);">›</span>
+        <span class="chev">${icon('chevron', 16)}</span>
       </button>
     </div>
 
     <div class="stat-grid" style="margin-top: 12px;">
       <button class="stat" data-act="go" data-arg="garage" style="text-align:left;cursor:pointer;">
-        <div class="v">🛒</div>
-        <div class="k" style="font-weight:700;color:var(--ink);">Garage Sale Mode</div>
+        <div class="v">${icon('cart', 20)}</div>
+        <div class="k" style="font-weight:600;color:var(--ink);margin-top:8px;">Garage Sale Mode</div>
         <div class="k">Scan a whole room fast</div>
       </button>
       <button class="stat" data-act="go" data-arg="analytics" style="text-align:left;cursor:pointer;">
@@ -406,7 +402,7 @@ function viewHome() {
 
     ${alerts.length ? `
       <div class="section-head"><h2>Price alerts</h2></div>
-      ${alerts.map(alertCard).join('')}
+      <div class="card">${alerts.map(alertCard).join('')}</div>
     ` : ''}
 
     ${rooms.length ? `
@@ -418,8 +414,8 @@ function viewHome() {
         ${rooms.map(([room, value]) => `
           <div class="room">
             <div class="row-between">
-              <span style="font-size:14px;font-weight:600;">${esc(room)}</span>
-              <span class="num" style="font-size:14px;font-weight:700;">${money(value)}</span>
+              <span style="font-size:14px;font-weight:500;">${esc(room)}</span>
+              <span class="num" style="font-size:14px;font-weight:600;">${money(value)}</span>
             </div>
             <div class="bar"><span style="width:${Math.max(4, (value / maxRoom) * 100)}%"></span></div>
           </div>
@@ -439,7 +435,7 @@ function viewHome() {
             <span class="name truncate">${esc(entry.item.name)}</span>
             <span class="tiny">${statusLabel(entry)}</span>
           </span>
-          <span class="num" style="font-weight:700;">${money(entry.soldFor ?? entry.pricing.prices.fair)}</span>
+          <span class="num" style="font-weight:600;">${money(entry.soldFor ?? entry.pricing.prices.fair)}</span>
         </button>
       `).join('')}
     </div>
@@ -449,19 +445,19 @@ function viewHome() {
 /** A single price-movement card for the home screen. */
 function alertCard(alert) {
   const up = alert.drift > 0;
+  // A row inside the alerts card rather than a card of its own. Two stacked cards for two
+  // alerts made a list of two things look like two unrelated announcements.
   return `
-    <div class="card card-tight" style="margin-bottom:10px;">
-      <div class="row">
-        <span class="thumb" style="background:${tint(alert.item)}">${glyphOf(alert.item)}</span>
-        <span class="grow col">
-          <span style="font-weight:640;font-size:14px;" class="truncate">${esc(alert.item.name)}</span>
-          <span class="tiny">${up ? 'Now may be the best time to sell' : 'Value is drifting down — consider listing soon'}</span>
-        </span>
-        <span class="col" style="text-align:right;">
-          <span class="num ${up ? 'profit' : 'loss'}" style="font-weight:750;">${money(alert.now)}</span>
-          <span class="tiny ${up ? 'profit' : 'loss'}">${up ? '▲' : '▼'} ${pct(Math.abs(alert.drift))}</span>
-        </span>
-      </div>
+    <div class="item-row">
+      <span class="thumb">${glyphOf(alert.item)}</span>
+      <span class="grow col">
+        <span class="name truncate">${esc(alert.item.name)}</span>
+        <span class="tiny">${up ? 'Now may be the best time to sell' : 'Value is drifting down — consider listing soon'}</span>
+      </span>
+      <span class="col" style="text-align:right;">
+        <span class="num ${up ? 'profit' : 'loss'}" style="font-weight:600;">${money(alert.now)}</span>
+        <span class="tiny ${up ? 'profit' : 'loss'}">${up ? '▲' : '▼'} ${pct(Math.abs(alert.drift))}</span>
+      </span>
     </div>
   `;
 }
@@ -505,7 +501,7 @@ function viewCamera() {
         style="width:100%;height:100%;object-fit:cover;background:#111827;"></video>
       <span class="corner tl"></span><span class="corner tr"></span>
       <span class="corner bl"></span><span class="corner br"></span>
-      <span class="glyph" id="camera-placeholder" style="position:absolute;">📷</span>
+      <span class="glyph" id="camera-placeholder" style="position:absolute;">${icon('camera', 44)}</span>
     </div>
 
     <p class="tiny" id="camera-status" style="margin-top:10px;">Starting the camera…</p>
@@ -584,15 +580,15 @@ function viewScan() {
   const gated = !isPro() && scansLeft() === 0;
 
   return `
-    <div style="margin: 8px 0 16px;">
-      <h1>Scan Something</h1>
+    <div style="margin: 10px 0 16px;">
+      <h1>Scan an item</h1>
       <p class="sub">Point at any item. The assistant identifies it and prices it against recent sold listings.</p>
     </div>
 
     <div class="viewfinder">
       <span class="corner tl"></span><span class="corner tr"></span>
       <span class="corner bl"></span><span class="corner br"></span>
-      <span class="glyph">📦</span>
+      <span class="glyph">${icon('box', 64)}</span>
     </div>
 
     ${gated ? `
@@ -609,14 +605,14 @@ function viewScan() {
       </div>
     `}
 
-    <div class="section-head"><h2>Point at something</h2>
+    <div class="section-head"><h2>Try a sample</h2>
       ${isPro() ? '' : `<span class="tiny">${scansLeft()} scan${scansLeft() === 1 ? '' : 's'} left today</span>`}
     </div>
 
     <div class="sample-grid">
       ${CATALOG.map((item) => `
         <button class="sample" data-act="scan" data-arg="${item.id}" ${gated ? 'disabled' : ''}>
-          <span class="g">${glyphOf(item)}</span>
+          <span class="g">${glyphOf(item, 20)}</span>
           <span class="l">${esc(shortName(item))}</span>
         </button>
       `).join('')}
@@ -626,44 +622,51 @@ function viewScan() {
     <div class="card">
       ${cameraSupported() ? `
         <button class="item-row" data-act="camera" ${gated ? 'disabled' : ''}>
-          <span class="thumb">📷</span>
+          <span class="thumb">${icon('camera', 22)}</span>
           <span class="grow col">
             <span class="name">Take a photo</span>
             <span class="tiny">Use the camera on this device</span>
           </span>
-          <span style="color:var(--faint);">›</span>
+          <span class="chev">${icon('chevron', 15)}</span>
         </button>
       ` : ''}
       <label class="item-row" style="cursor:pointer;">
-        <span class="thumb">🖼️</span>
+        <span class="thumb">${icon('image', 22)}</span>
         <span class="grow col">
           <span class="name">Upload your own photos</span>
           <span class="tiny">Use real pictures of your item</span>
         </span>
-        <span style="color:var(--faint);">›</span>
+        <span class="chev">${icon('chevron', 15)}</span>
         <input type="file" class="sr-only" accept="image/*" multiple data-act="photos" ${gated ? 'disabled' : ''} />
       </label>
       <button class="item-row" data-act="scan-random" ${gated ? 'disabled' : ''}>
-        <span class="thumb">🎲</span>
+        <span class="thumb">${icon('spark', 22)}</span>
         <span class="grow col"><span class="name">Surprise me</span><span class="tiny">Scan a random item</span></span>
-        <span style="color:var(--faint);">›</span>
+        <span class="chev">${icon('chevron', 15)}</span>
       </button>
       <button class="item-row" data-act="barcode">
-        <span class="thumb">📊</span>
+        <span class="thumb">${icon('barcode', 22)}</span>
         <span class="grow col"><span class="name">Barcode or serial</span><span class="tiny">UPC, QR, ISBN, serial number</span></span>
-        <span style="color:var(--faint);">›</span>
+        <span class="chev">${icon('chevron', 15)}</span>
       </button>
       <button class="item-row" data-act="receipt">
-        <span class="thumb">🧾</span>
+        <span class="thumb">${icon('receipt', 22)}</span>
         <span class="grow col"><span class="name">Import a receipt</span><span class="tiny">Work out what it has cost you to keep</span></span>
-        <span style="color:var(--faint);">›</span>
+        <span class="chev">${icon('chevron', 15)}</span>
       </button>
     </div>
   `;
 }
 
+/**
+ * The name as it appears on a sample tile.
+ *
+ * Slicing at a fixed character count is what produced "AirPods Pro (2nd generat…" — a cut mid-word
+ * and mid-parenthesis. Trim the parenthetical, which is always the least useful part of a product
+ * name at tile size, and let the two-line clamp in styles.css end the rest at a line boundary.
+ */
 function shortName(item) {
-  return item.name.length > 26 ? `${item.name.slice(0, 24)}…` : item.name;
+  return item.name.replace(/\s*\([^)]*\)\s*$/, '');
 }
 
 function viewAnalysing() {
@@ -683,7 +686,7 @@ function viewAnalysing() {
       <span class="corner bl"></span><span class="corner br"></span>
       ${pendingPhoto
         ? `<img src="${pendingPhoto}" alt="" style="width:100%;height:100%;object-fit:cover;opacity:0.85;" />`
-        : `<span class="glyph">${state.pendingGlyph ?? '📦'}</span>`}
+        : `<span class="glyph">${state.pendingIcon ? categoryIcon(state.pendingIcon, 64) : icon('image', 64)}</span>`}
     </div>
     <div class="card" style="margin-top:18px;">
       <div class="steps" id="steps">
@@ -712,7 +715,9 @@ function startScan(itemId, options = {}) {
   const { photos = [], seed = `${itemId}-${Date.now()}` } = options;
   const item = itemId ? getItem(itemId) : null;
 
-  state.pendingGlyph = item ? glyphOf(item) : '🖼️';
+  // The category id rather than the drawn icon: this is persisted state, and markup does not
+  // belong in localStorage.
+  state.pendingIcon = item?.category ?? null;
   pendingPhoto = photos[0] ?? null;
   state.view = 'analysing';
   render();
@@ -829,7 +834,7 @@ function viewResult() {
     <div class="card" style="margin-top:14px;">
       <div class="row-between">
         <span class="tiny">Identification confidence</span>
-        <span class="num" style="font-weight:750;">${pct(recognition.confidence)}</span>
+        <span class="num" style="font-weight:600;">${pct(recognition.confidence)}</span>
       </div>
       <div class="confidence" style="margin-top:8px;"><span style="width:${pct(recognition.confidence)}"></span></div>
       ${recognition.alternates.length ? `
@@ -906,8 +911,8 @@ function viewResult() {
             <span class="rank">${entry.rank}</span>
             <span class="grow col">
               <span class="row-between">
-                <span style="font-weight:680;font-size:14.5px;">${entry.marketplace.glyph} ${esc(entry.marketplace.name)}</span>
-                <span class="num profit" style="font-weight:750;">${money(entry.profit.net, 2)}</span>
+                <span style="font-weight:600;font-size:14.5px;">${esc(entry.marketplace.name)}</span>
+                <span class="num profit" style="font-weight:600;">${money(entry.profit.net, 2)}</span>
               </span>
               <span class="row wrap" style="gap:5px;margin:5px 0 3px;">
                 ${entry.badges.map((b) => `<span class="pill ${badgeTone(b)}">${b}</span>`).join('')}
@@ -925,13 +930,13 @@ function viewResult() {
     ${recognition.photoSuggestions.length ? `
       <div class="section-head"><h2>Improve your photos</h2></div>
       <div class="card">
-        ${recognition.photoSuggestions.map((s) => `<p class="tiny" style="margin-bottom:8px;">📷 ${esc(s)}</p>`).join('')}
+        ${recognition.photoSuggestions.map((s) => `<p class="tiny" style="margin-bottom:8px;">${icon('camera', 14)} ${esc(s)}</p>`).join('')}
       </div>
     ` : ''}
 
     <div class="section-head"><h2>Shipping</h2></div>
     <div class="card">
-      ${packingTips(item).map((tip) => `<p class="tiny" style="margin-bottom:8px;">📦 ${esc(tip)}</p>`).join('')}
+      ${packingTips(item).map((tip) => `<p class="tiny" style="margin-bottom:8px;">${icon('box', 14)} ${esc(tip)}</p>`).join('')}
     </div>
 
     <div class="stack" style="margin-top:20px;">
@@ -1002,7 +1007,7 @@ function priorityLabel() {
 function profitCard(entry, pricing, tier) {
   const { profit } = entry;
   const lines = [
-    ['Sells for on ' + entry.marketplace.name, profit.price],
+    [`Sale price on ${entry.marketplace.name}`, profit.price],
     ['Marketplace fee', -profit.fee],
   ];
   if (profit.shippingCost) lines.push(['Shipping', -profit.shippingCost]);
@@ -1080,7 +1085,7 @@ function viewListing() {
           </div>
         </div>
         <div class="grow col">
-          <span style="font-weight:700;font-size:16px;">${quality.grade}</span>
+          <span style="font-weight:600;font-size:16px;">${quality.grade}</span>
           <span class="tiny">Listing quality score out of 100</span>
         </div>
       </div>
@@ -1112,7 +1117,7 @@ function viewListing() {
         <span class="row" style="gap:8px;">
           <button class="btn btn-quiet btn-sm" data-act="photo-count" data-arg="-1"
             ${photoCount <= 1 ? 'disabled' : ''} aria-label="Remove a photo">−</button>
-          <span class="num" style="font-weight:750;min-width:18px;text-align:center;">${photoCount}</span>
+          <span class="num" style="font-weight:600;min-width:18px;text-align:center;">${photoCount}</span>
           <button class="btn btn-ghost btn-sm" data-act="photo-count" data-arg="1"
             ${photoCount >= 10 ? 'disabled' : ''} aria-label="Add a photo">+</button>
         </span>
@@ -1168,7 +1173,7 @@ function viewListing() {
             aria-checked="${selected}" ${locked ? 'disabled style="opacity:0.4;"' : ''}>
             <span class="box">✓</span>
             <span class="grow col">
-              <span style="font-weight:620;">${marketplace.glyph} ${esc(marketplace.name)}</span>
+              <span style="font-weight:600;">${esc(marketplace.name)}</span>
               <span class="tiny">${entry ? `${money(entry.profit.net, 2)} net · ~${entry.days} days` : marketplace.feeLabel}</span>
             </span>
           </button>
@@ -1230,7 +1235,7 @@ function viewInventory() {
                 <span class="tiny">${statusLabel(entry)}</span>
               </span>
               <span class="col" style="text-align:right;">
-                <span class="num" style="font-weight:700;">${money(entry.soldFor ?? entry.pricing.prices.fair)}</span>
+                <span class="num" style="font-weight:600;">${money(entry.soldFor ?? entry.pricing.prices.fair)}</span>
                 <span class="tiny">${esc(getCondition(entry.condition).label)}</span>
               </span>
             </button>
@@ -1238,7 +1243,7 @@ function viewInventory() {
         `).join('')}
       </div>
     ` : `
-      <div class="empty"><span class="g">📦</span>Nothing here yet. Scan something to start building your inventory.</div>
+      <div class="empty"><span class="g">${icon('box', 34)}</span>Nothing here yet. Scan something to start building your inventory.</div>
     `}
 
     <div style="margin-top:18px;">
@@ -1258,7 +1263,7 @@ function viewBundle() {
   if (!analysis.viable) {
     return `
       <button class="btn btn-quiet btn-sm" data-act="go" data-arg="inventory">‹ Back</button>
-      <div class="empty"><span class="g">🎁</span>${esc(analysis.reason)}</div>
+      <div class="empty"><span class="g">${icon('gift', 34)}</span>${esc(analysis.reason)}</div>
     `;
   }
 
@@ -1293,13 +1298,13 @@ function viewBundle() {
     <div class="card" style="margin-top:12px;">
       <div class="eyebrow" style="margin-bottom:10px;">Suggested bundle</div>
       <div class="row-between">
-        <span style="font-weight:680;">${esc(analysis.bundle.title)}</span>
-        <span class="num" style="font-weight:750;">${money(analysis.bundle.price)}</span>
+        <span style="font-weight:600;">${esc(analysis.bundle.title)}</span>
+        <span class="num" style="font-weight:600;">${money(analysis.bundle.price)}</span>
       </div>
       <div class="divider"></div>
       ${analysis.items.map((entry) => `
         <div class="row" style="padding:7px 0;">
-          <span class="thumb" style="width:36px;height:36px;font-size:18px;background:${tint(entry.item)}">${glyphOf(entry.item)}</span>
+          <span class="thumb thumb-sm">${glyphOf(entry.item, 17)}</span>
           <span class="grow tiny truncate" style="color:var(--ink-2);font-weight:600;">${esc(entry.item.name)}</span>
           <span class="num tiny">${money(entry.fair)}</span>
         </div>
@@ -1332,7 +1337,7 @@ function viewGarage() {
       <div class="tiny">${scanned.length} item${scanned.length === 1 ? '' : 's'} scanned</div>
     </div>
 
-    <button class="btn btn-block" data-act="garage-scan">📸 Scan next item</button>
+    <button class="btn btn-block" data-act="garage-scan">${icon('camera', 18)} Scan next item</button>
 
     ${scanned.length ? `
       <div class="section-head"><h2>Scanned</h2>
@@ -1343,18 +1348,18 @@ function viewGarage() {
           const item = getItem(s.itemId);
           return `
             <div class="item-row">
-              <span class="thumb" style="background:${tint(item)}">${glyphOf(item)}</span>
+              <span class="thumb">${glyphOf(item)}</span>
               <span class="grow col">
                 <span class="name truncate">${esc(item.name)}</span>
                 <span class="tiny">${esc(getCondition(s.condition).label)}</span>
               </span>
-              <span class="num profit" style="font-weight:750;">${money(s.value)}</span>
+              <span class="num profit" style="font-weight:600;">${money(s.value)}</span>
             </div>
           `;
         }).join('')}
       </div>
     ` : `
-      <div class="empty"><span class="g">🛒</span>Nothing scanned yet. Point at the first thing you see.</div>
+      <div class="empty"><span class="g">${icon('cart', 34)}</span>Nothing scanned yet. Point at the first thing you see.</div>
     `}
   `;
 }
@@ -1404,7 +1409,7 @@ function viewAnalytics() {
         <div class="room">
           <div class="row-between">
             <span style="font-size:14px;font-weight:600;">${esc(label)}</span>
-            <span class="num" style="font-size:14px;font-weight:700;">${money(value)}</span>
+            <span class="num" style="font-size:14px;font-weight:600;">${money(value)}</span>
           </div>
           <div class="bar"><span style="width:${Math.max(4, (value / maxCategory) * 100)}%"></span></div>
         </div>
@@ -1421,7 +1426,7 @@ function viewAnalytics() {
             const now = i === new Date().getMonth();
             return `<div class="col-b">
               <div class="b" style="height:${Math.max(6, Math.min(100, height))}%;${now ? 'background:linear-gradient(180deg,var(--emerald),#34d399);' : ''}"></div>
-              <div class="l" ${now ? 'style="color:var(--emerald);font-weight:800;"' : ''}>${months[i]}</div>
+              <div class="l" ${now ? 'style="color:var(--emerald);font-weight:600;"' : ''}>${months[i]}</div>
             </div>`;
           }).join('')}
         </div>
@@ -1435,12 +1440,12 @@ function viewAnalytics() {
         const days = ranked[0] ? expectedDays(ranked[0].marketplace, entry.item, 'fair') : null;
         return `
           <div class="item-row">
-            <span class="thumb" style="background:${tint(entry.item)}">${glyphOf(entry.item)}</span>
+            <span class="thumb">${glyphOf(entry.item)}</span>
             <span class="grow col">
               <span class="name truncate">${esc(entry.item.name)}</span>
               <span class="tiny">${days ? `Typically sells in ~${days} days` : 'No marketplace fit'}</span>
             </span>
-            <span class="num" style="font-weight:700;">${money(entry.pricing.prices.fair)}</span>
+            <span class="num" style="font-weight:600;">${money(entry.pricing.prices.fair)}</span>
           </div>
         `;
       }).join('') : '<p class="tiny">Everything is sold. Time to scan more.</p>'}
@@ -1455,12 +1460,12 @@ function viewProfile() {
   const earned = sold.reduce((sum, e) => sum + (e.soldFor ?? 0), 0);
 
   const achievements = [
-    { id: 'first', label: 'First Sale', glyph: '🎉', done: sold.length >= 1 },
-    { id: 'thousand', label: '$1,000 Earned', glyph: '💰', done: earned >= 1000 },
-    { id: 'hundred', label: '100 Items Sold', glyph: '💯', done: sold.length >= 100 },
-    { id: 'garage', label: 'Garage Cleared', glyph: '🚗', done: (state.garage.scanned?.length ?? 0) >= 5 },
-    { id: 'closet', label: 'Closet Champion', glyph: '👕', done: state.inventory.filter((e) => e.room === 'Closet').length >= 3 },
-    { id: 'power', label: 'Power Seller', glyph: '⚡', done: sold.length >= 25 },
+    { id: 'first', label: 'First Sale', glyph: 'spark', done: sold.length >= 1 },
+    { id: 'thousand', label: '$1,000 Earned', glyph: 'trophy', done: earned >= 1000 },
+    { id: 'hundred', label: '100 Items Sold', glyph: 'check', done: sold.length >= 100 },
+    { id: 'garage', label: 'Garage Cleared', glyph: 'cart', done: (state.garage.scanned?.length ?? 0) >= 5 },
+    { id: 'closet', label: 'Closet Champion', glyph: 'apparel', done: state.inventory.filter((e) => e.room === 'Closet').length >= 3 },
+    { id: 'power', label: 'Power Seller', glyph: 'spark', done: sold.length >= 25 },
   ];
 
   return `
@@ -1470,7 +1475,7 @@ function viewProfile() {
       <div class="row">
         <span class="thumb" style="background:linear-gradient(145deg,var(--indigo),#7c3aed);color:#fff;">JP</span>
         <span class="grow col">
-          <span style="font-weight:700;font-size:16px;">Josiah Placide</span>
+          <span style="font-weight:600;font-size:16px;">Josiah Placide</span>
           <span class="tiny">${isPro() ? 'ResellAI Pro' : 'Free plan'} · ${sold.length} items sold</span>
         </span>
       </div>
@@ -1500,7 +1505,7 @@ function viewProfile() {
       <div class="row wrap" style="gap:10px;">
         ${achievements.map((a) => `
           <div class="col" style="align-items:center;width:calc(33.33% - 7px);opacity:${a.done ? 1 : 0.35};">
-            <span style="font-size:28px;">${a.glyph}</span>
+            <span class="ach-icon">${icon(a.glyph, 24)}</span>
             <span class="tiny" style="text-align:center;font-weight:600;">${a.label}</span>
           </div>
         `).join('')}
@@ -1510,17 +1515,17 @@ function viewProfile() {
     <div class="section-head"><h2>Preferences</h2></div>
     <div class="card">
       <div class="row-between" style="padding:9px 0;">
-        <span class="col"><span style="font-weight:620;font-size:14.5px;">Dark mode</span><span class="tiny">Charcoal theme</span></span>
+        <span class="col"><span style="font-weight:600;font-size:14.5px;">Dark mode</span><span class="tiny">Charcoal theme</span></span>
         <button class="switch" data-act="theme" aria-checked="${isDark()}" role="switch" aria-label="Dark mode"></button>
       </div>
       <div class="divider"></div>
       <div class="row-between" style="padding:9px 0;">
-        <span class="col"><span style="font-weight:620;font-size:14.5px;">Notifications</span><span class="tiny">Price alerts and listing views</span></span>
+        <span class="col"><span style="font-weight:600;font-size:14.5px;">Notifications</span><span class="tiny">Price alerts and listing views</span></span>
         <button class="switch" data-act="notifications" aria-checked="${state.prefs.notifications}" role="switch" aria-label="Notifications"></button>
       </div>
       <div class="divider"></div>
       <div class="col" style="gap:8px;padding:9px 0;">
-        <span style="font-weight:620;font-size:14.5px;">Marketplace priority</span>
+        <span style="font-weight:600;font-size:14.5px;">Marketplace priority</span>
         <div class="row" style="gap:8px;">
           ${[['balanced', 'Balanced'], ['profit', 'Most profit'], ['speed', 'Fastest']].map(([id, label]) => `
             <button class="chip" data-act="priority" data-arg="${id}" aria-pressed="${state.prefs.priority === id}">${label}</button>
@@ -1529,7 +1534,7 @@ function viewProfile() {
       </div>
       <div class="divider"></div>
       <div class="col" style="gap:8px;padding:9px 0;">
-        <span style="font-weight:620;font-size:14.5px;">Default listing tone</span>
+        <span style="font-weight:600;font-size:14.5px;">Default listing tone</span>
         <div class="row wrap" style="gap:8px;">
           ${TONES.map((t) => `
             <button class="chip" data-act="default-tone" data-arg="${t.id}" aria-pressed="${state.prefs.tone === t.id}">${t.label}</button>
@@ -1542,7 +1547,7 @@ function viewProfile() {
     <div class="card">
       <div class="row-between" style="padding:9px 0;">
         <span class="col">
-          <span style="font-weight:620;font-size:14.5px;">Use real AI recognition</span>
+          <span style="font-weight:600;font-size:14.5px;">Use real AI recognition</span>
           <span class="tiny">Sends your photo to Claude instead of the built-in simulator</span>
         </span>
         <button class="switch" data-act="toggle-vision-ai" aria-checked="${state.prefs.useVisionAI}" role="switch" aria-label="Use real AI recognition"></button>
@@ -2116,7 +2121,7 @@ function openSheet(entry) {
       <div class="row">
         ${thumbFor(enriched.item, entry.uid)}
         <span class="grow col">
-          <span style="font-weight:700;font-size:16px;">${esc(enriched.item.name)}</span>
+          <span style="font-weight:600;font-size:16px;">${esc(enriched.item.name)}</span>
           <span class="tiny">${esc(getCondition(entry.condition).label)} · ${esc(entry.room)}</span>
         </span>
       </div>
@@ -2138,8 +2143,8 @@ function openSheet(entry) {
         <div class="card" style="margin-top:12px;">
           <div class="eyebrow" style="margin-bottom:6px;">Best marketplace</div>
           <div class="row-between">
-            <span style="font-weight:680;">${best.marketplace.glyph} ${esc(best.marketplace.name)}</span>
-            <span class="num profit" style="font-weight:750;">${money(best.profit.net, 2)}</span>
+            <span style="font-weight:600;">${esc(best.marketplace.name)}</span>
+            <span class="num profit" style="font-weight:600;">${money(best.profit.net, 2)}</span>
           </div>
           <p class="tiny" style="margin-top:8px;">${esc(best.why)}</p>
         </div>
@@ -2266,7 +2271,7 @@ function viewNegotiate() {
       <div class="row">
         ${thumbFor(enriched.item, entry.uid)}
         <span class="grow col">
-          <span style="font-weight:660;font-size:14.5px;" class="truncate">${esc(enriched.item.name)}</span>
+          <span style="font-weight:600;font-size:14.5px;" class="truncate">${esc(enriched.item.name)}</span>
           <span class="tiny">Listed at ${money(askPrice)} on ${esc(marketplace.name)} · ${daysListed} day${daysListed === 1 ? '' : 's'} ago</span>
         </span>
       </div>
@@ -2291,7 +2296,7 @@ function viewNegotiate() {
       <div class="card" style="margin-top:16px;">
         <div class="row-between">
           <span class="pill ${badge[result.verdict][0]}" style="font-size:13px;padding:7px 14px;">${badge[result.verdict][1]}</span>
-          <span class="num" style="font-weight:750;">${money(result.offerNet, 2)} net</span>
+          <span class="num" style="font-weight:600;">${money(result.offerNet, 2)} net</span>
         </div>
         <p class="tiny" style="margin-top:12px;">${esc(result.reasoning)}</p>
 
@@ -2321,7 +2326,7 @@ function viewNegotiate() {
         </div>
       ` : ''}
     ` : `
-      <div class="empty"><span class="g">🤝</span>Enter an offer to see whether it clears your floor.</div>
+      <div class="empty"><span class="g">${icon('chat', 34)}</span>Enter an offer to see whether it clears your floor.</div>
     `}
   `;
 }

@@ -191,3 +191,25 @@ Colour, typography, and navigation follow the PRD: Deep Indigo `#4F46E5`, Emeral
 Soft White `#FAFAFA`, Charcoal `#111827` in dark mode, SF Pro Display and Inter for text, SF Mono
 for figures, and a five-tab bottom bar with a floating scan button. The layout is a phone shell
 that fills the viewport on a real device and renders as a device frame on a desktop screen.
+
+Three rules keep it from looking like a template:
+
+**Colour means something or it is not used.** Indigo marks what you can act on and emerald and
+red mark profit and loss — so neither is spent on decoration. The home screen's headline figure
+used to sit on an indigo-to-violet gradient card with a translucent circle in the corner, which
+made the most important number in the app the hardest one to read and left no accent colour to
+distinguish a button from a banner. Item thumbnails lost their per-item pastel tints for the
+same reason: fifteen different pastels made one inventory look like fifteen unrelated things.
+
+**One icon set, drawn on one grid.** [`app/icons.js`](app/icons.js) holds every icon as a single
+stroked path on a 24×24 grid inheriting `currentColor`. These were emoji, which is the fastest
+way to get a picture into a prototype and the fastest way to make it look unfinished: emoji are
+drawn by the operating system, so the app has no say in their weight or colour and they render
+as three different illustrations across macOS, Windows, and Android. They also collided — two
+sneakers shared one 👟, a jacket and a pair of jeans shared one 🧥 — so the picture stopped
+carrying information.
+
+**Emphasis has to be scarce to work.** The type scale asks for at most `600`, in one step above
+body text. The previous scale ran up to `820` and used seven different weights, which on any
+system without a variable-weight font all round to the same Bold — so everything was emphasised
+and nothing was.

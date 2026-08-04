@@ -112,6 +112,24 @@ test('catalog attributes cannot overwrite the derived specifics', () => {
   assert.equal(listing.specifics.Colour, 'Black / White');
 });
 
+test('a derived specific is protected however its attribute is spelled', () => {
+  // Three spellings of the same field, none of them the exact string the derived row uses.
+  // Each used to slip past the filter and publish a second shipping row contradicting the real
+  // one — two rows in the same table telling a buyer two different things.
+  for (const key of ['shippingWeight', 'shipping_weight', 'Shipping Weight']) {
+    const spoofed = {
+      ...getItem('nike-dunk-panda'),
+      attributes: { [key]: '99 lb' },
+    };
+    const listing = generateListing({ item: spoofed, condition: 'good', price: 100 });
+
+    const shippingRows = Object.entries(listing.specifics)
+      .filter(([name]) => name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'shippingweight');
+    assert.equal(shippingRows.length, 1, `${key} produced ${shippingRows.length} shipping rows`);
+    assert.notEqual(shippingRows[0][1], '99 lb', `${key} overrode the computed shipping weight`);
+  }
+});
+
 test('local-pickup items say so in the shipping section', () => {
   const listing = generateListing({ item: getItem('peloton-bike'), condition: 'good', price: 450 });
   assert.match(listing.description, /Local pickup only/);
