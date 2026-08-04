@@ -4,7 +4,7 @@
  * The app is written as plain ES modules with no dependencies, so it runs directly from
  * `app/index.html` during development. This script flattens the module graph into a single
  * inline script for environments that cannot serve multiple files — notably a published
- * Artifact, whose content-security policy blocks every external request.
+ * Artifact, whose content-security policy blocks every external asset request.
  *
  * It is deliberately not a general-purpose bundler. It understands exactly the module syntax
  * this project uses, and throws on anything it does not recognise rather than emitting a
@@ -217,11 +217,17 @@ ${script}
 </html>
 `;
 
-// Both outputs exist to run with no network at all — the Artifact CSP blocks external requests
-// outright, and the standalone build is opened straight from a file:// path. An external
-// reference surviving into either one is a silent failure at exactly the moment it matters, so
-// check rather than trust the transforms above.
-// Any href or src that is not a data: URI would be fetched at runtime. Checked generically
+// Every output must load with no external asset references in its shell — the Artifact CSP
+// blocks external requests outright, and the standalone build is opened straight from a file://
+// path where relative URLs resolve to nothing. A reference surviving into one of them is a
+// silent failure at exactly the moment it matters, so check rather than trust the transforms
+// above.
+//
+// Scoped to loading, deliberately. This says nothing about what the running app does: the
+// opt-in vision path in src/engine/vision.js calls Anthropic's API at runtime once the user
+// supplies a key, and that request is intended and cannot be spotted in markup anyway.
+//
+// Any href or src that is not a data: URI would be fetched at load. Checked generically
 // rather than per-tag so a future <link> or <img> added to index.html is caught too.
 const EXTERNAL_REF_RE = /<(?:link|script|img|source)\b[^>]*\b(?:href|src)\s*=\s*["'](?!data:)[^"']*["'][^>]*>/gi;
 

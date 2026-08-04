@@ -101,6 +101,14 @@ let pendingPhoto = null;
  */
 let cameraStream = null;
 
+/**
+ * The in-flight `startCamera()` call, if one has not resolved yet.
+ *
+ * Separate from `cameraStream` because there is a window — however long the permission prompt is
+ * on screen — where the camera is being opened but no stream exists to hold yet.
+ */
+let cameraStartPromise = null;
+
 /** Release the camera whenever we leave the camera view, however we leave it. */
 function closeCamera() {
   stopCamera(cameraStream);
@@ -528,14 +536,33 @@ async function attachCamera() {
     return;
   }
 
+  // Opening a camera takes as long as the user takes to answer the permission prompt, and the
+  // camera view can be left and re-entered while it sits there — tab bar, back, scan, "Take a
+  // photo" again. Each re-entry renders and calls this. Without a handle on the request already
+  // in flight, `cameraStream` is still null on the second pass and the device gets opened twice:
+  // the second stream overwrites the first in the single module-level handle, so the first is
+  // never stopped and the indicator light stays on for the rest of the session.
+  if (cameraStartPromise) {
+    await cameraStartPromise.catch(() => {});
+    // Re-enter rather than duplicate the binding: the stream was attached to the <video> that
+    // was on screen when the request started, which the re-render has since replaced. Only when
+    // it opened — a failed request has already shown its error, and retrying it here would ask
+    // for permission a second time immediately after the user declined it.
+    if (state.view === 'camera' && cameraStream) attachCamera();
+    return;
+  }
+
   try {
-    cameraStream = await startCamera(video);
+    cameraStartPromise = startCamera(video);
+    cameraStream = await cameraStartPromise;
   } catch (error) {
     // The view may have been left while the permission prompt sat open.
     if (state.view !== 'camera') return closeCamera();
     const status = $('#camera-status');
     if (status) status.textContent = describeCameraError(error);
     return;
+  } finally {
+    cameraStartPromise = null;
   }
 
   // The same race the other way: permission granted after the user navigated away.

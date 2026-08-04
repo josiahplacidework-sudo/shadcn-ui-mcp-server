@@ -20,8 +20,10 @@ npm test          # 113 unit tests over the pricing, profit, listing, offer, and
 npm run build     # bundles everything into three single-file builds in dist/
 ```
 
-The build emits three variants of the same app, all fully self-contained with no external
-requests:
+The build emits three variants of the same app. Each is a single file that loads with no external
+asset requests — no CDN, no font, no stylesheet, no image fetched from anywhere. The one request
+any of them can make is at runtime and only if you ask for it: turning on the opt-in vision
+recognition described below sends your photo to Anthropic's API with your own key.
 
 | File | Use it for |
 | --- | --- |
@@ -37,10 +39,15 @@ itself — [`netlify.toml`](../netlify.toml) at the repo root points the build a
 (`base = "resellai"`), runs `npm run build`, and publishes `dist/`, where `index.html` is what
 Netlify serves. No dashboard configuration is required beyond connecting the repository.
 
-Hosting on a real domain over HTTPS is also what unlocks the live camera in Scan → Take a photo:
-`getUserMedia` needs a secure context, which `dist/resellai-standalone.html` opened from
-`file://` does not provide — that build offers photo upload instead. Serve `index.html` from
-Netlify (or any HTTPS host) and the camera works there too.
+Hosting on a real domain over HTTPS is also what unlocks the live camera in Scan → Take a photo.
+`getUserMedia` needs a secure context and a permission grant the user makes per origin, so it
+wants a real origin to attach that grant to. A `file://` page has no useful origin, and browsers
+differ on what they even claim about one — Chromium reports it as a secure context while still
+refusing or mishandling camera access — so the app does not go by that claim. It hides live
+capture on `file://` by protocol outright (see [`app/camera.js`](app/camera.js)), rather than
+offering a button that asks for permission and then fails. `dist/resellai-standalone.html` is
+therefore upload-only by design. Serve `index.html` from Netlify or any other HTTPS host and the
+camera button appears, subject to browser support and the user allowing it.
 
 ## What is real and what is simulated
 
@@ -168,8 +175,11 @@ rest of the session's state down with them.
 
 Live camera capture is real: "Take a photo" opens the device camera through `getUserMedia`,
 and the captured frame goes down the same path as an uploaded file — so it is identified by the
-vision model when that is switched on. The option only appears in a secure context, since
-`getUserMedia` is not exposed over `file://`; the standalone build falls back to uploading.
+vision model when that is switched on. The option appears when the browser exposes
+`getUserMedia` in a secure context and the page is not being served from `file://`, which the
+standalone build is; there, and anywhere the camera is refused, uploading a photo does the same
+job. See [Deploying](#deploying) for why `file://` is excluded by protocol rather than by asking
+the browser whether it counts as secure.
 
 Not built: background removal, barcode scanning, receipt OCR (purchase price and date are typed
 in, and the depreciation maths behind them is real), and actual marketplace API integrations —
