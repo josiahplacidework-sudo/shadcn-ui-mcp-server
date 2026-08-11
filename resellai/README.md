@@ -16,14 +16,25 @@ Requires Node.js 18 or newer.
 ```bash
 cd resellai
 npm run serve     # http://localhost:4173
-npm test          # 113 unit tests over the pricing, profit, listing, offer, and vision engines
+npm test          # 121 unit tests over the pricing, profit, listing, offer, and vision engines
 npm run build     # bundles everything into three single-file builds in dist/
 ```
 
 The build emits three variants of the same app. Each is a single file that loads with no external
-asset requests — no CDN, no font, no stylesheet, no image fetched from anywhere. The one request
-any of them can make is at runtime and only if you ask for it: turning on the opt-in vision
-recognition described below sends your photo to Anthropic's API with your own key.
+asset requests — no CDN, no font, no stylesheet, no image fetched from anywhere. At runtime it
+talks to one backend: your Supabase project, for sign-in, your inventory, and recognition.
+
+Recognition needs a backend, so the build reads two environment variables and inlines them:
+
+```bash
+SUPABASE_URL=https://<project>.supabase.co \
+SUPABASE_ANON_KEY=sb_publishable_... \
+  npm run build
+```
+
+Both are public by design — the publishable key identifies the project and authorises nothing on
+its own, because every table is guarded by row-level security keyed to the caller's JWT. Building
+without them prints a warning and produces an app that renders but cannot sign anyone in.
 
 | File | Use it for |
 | --- | --- |
@@ -49,31 +60,63 @@ offering a button that asks for permission and then fails. `dist/resellai-standa
 therefore upload-only by design. Serve `index.html` from Netlify or any other HTTPS host and the
 camera button appears, subject to browser support and the user allowing it.
 
-## What is real and what is simulated
+## What is real, and what is an estimate
 
 The honest boundary matters, because a resale app that guesses at prices is worse than useless.
 
-**Simulated by default** — item recognition. There is no vision model behind the camera unless you
-turn one on (see below). Picking a sample item resolves deterministically to a catalog entry, and
-every recognition result is flagged `simulated: true` so the UI can say so out loud. The comps in
-[`src/data/catalog.js`](src/data/catalog.js) are representative rather than live.
+**Real** — item recognition. Photos go to `claude-opus-5`, which names what is actually in the
+frame rather than picking the nearest of nineteen catalog entries. There is no simulator and no
+API key to supply: the key lives server-side in a Supabase edge function
+([`supabase/functions/recognize`](supabase/functions/recognize/index.ts)), which checks the
+caller's session and enforces a per-user daily cap before spending it. The browser never sees it.
 
-**Real, opt-in** — vision recognition. Toggle "Use real AI recognition" in Profile and paste your
-own Anthropic API key, and an uploaded photo is sent to `claude-opus-5` for actual identification
-(via [`src/engine/vision.js`](src/engine/vision.js)) instead of the deterministic simulator. The
-key lives only in this browser tab's `sessionStorage` — never in the `localStorage` blob the rest
-of the app's state is saved to, and never sent anywhere but directly to Anthropic's API from your
-own browser. Because the pricing engine only has comps for the fixed catalog, the model is asked
-to match the photo to the closest catalog entry; a scan without a good match still gets priced,
-just against the nearest category's comps. Any failure (no key, network error, a declined request)
-falls back to the simulator with a toast explaining why. There's no server component here — this
-is inherent to a client-only prototype with a key you provide, not something a production app
-would do with your credentials.
+**Real, and labelled** — pricing for items outside the catalog. Nineteen items have recorded sold
+prices; the world does not. When recognition returns something with no history, the model also
+returns a low/fair/high valuation, and [`src/engine/vision.js`](src/engine/vision.js) turns that
+into an item the pricing engine can consume. Those results are flagged `estimated` and every
+surface that shows one says so — the result screen replaces "recent sales" with an explicit
+"this is an estimate, not sold history" banner, and the chat assistant refuses to claim
+comparable sales it does not have. A guess presented as sold history is the one failure mode
+worth engineering against, because it is the one that costs the user money.
+
+**Honest about bad photos.** If the photo is too dark, blurry, angled, obstructed, or crowded to
+support an identification, the model says so instead of guessing, and the app shows exactly what
+to fix rather than a price for the wrong item.
 
 **Real** — everything downstream of recognition. Given an item, a condition, and a set of comps,
 the price ladder, marketplace fees, shipping estimates, platform ranking, listing copy, quality
 score, and bundle analysis are all genuinely computed, and they are covered by unit tests. This is
-true whether the item came from the simulator or the real vision path above.
+true whether the item was matched to the catalog or valued by the model.
+
+## Accounts and your data
+
+Everything is scoped to a signed-in account. Sign-up and sign-in run against Supabase Auth, and
+your inventory lives in a Postgres table guarded by row-level security — the policy, not the
+client, is what decides you can only read your own rows. The frontend talks to it over plain REST
+rather than `@supabase/supabase-js`, because the build inlines local modules and cannot resolve an
+npm dependency; adopting one would mean giving up the single-file build the project is built
+around.
+
+What stays on the device: your theme, listing tone, and marketplace priority. Those are
+properties of *this browser*, not of the account — syncing them would make your phone change your
+laptop.
+
+Photos are sent for identification and are not stored on the server. They are held in memory for
+the session only, because a few phone photos as data URLs would exhaust the localStorage quota
+and take the rest of the session's state down with them.
+
+Recognition costs the project owner money per scan, so the edge function enforces a per-user
+daily cap (25) before it calls the model. That limit is server-side on purpose: a limit the
+user's own browser applies is not a limit.
+
+### Setting it up
+
+1. Apply the schema in [`supabase/`](supabase/) to a Supabase project (`profiles`, `items`,
+   `scans`, all with row-level security).
+2. Deploy the `recognize` edge function.
+3. Set `ANTHROPIC_API_KEY` as a secret on that function. **This is the one credential that must
+   never reach the browser** — it is why the function exists.
+4. Build the frontend with `SUPABASE_URL` and `SUPABASE_ANON_KEY` set, as above.
 
 ## How the pricing works
 
@@ -168,8 +211,7 @@ Mode, the bundle builder, donate-instead-of-sell advice, the chat assistant, the
 assistant, depreciation and hold-or-sell timing, achievements, dark mode, and the free/Pro gate.
 
 You can upload real photos of your own. They are displayed as the item's thumbnail and drive the
-photo count behind the quality score. Recognition of them stays simulated unless you turn on the
-opt-in real vision path described above, in which case the photo is genuinely identified. Photos
+photo count behind the quality score. Every photo is genuinely identified. Photos
 are held in memory only — a few phone photos as data URLs would exhaust the localStorage quota and take the
 rest of the session's state down with them.
 

@@ -6,9 +6,20 @@
  * session survives a refresh.
  */
 
-import { CATALOG, CATEGORIES, categoryOf, getItem } from '../src/data/catalog.js';
+import { CATEGORIES, categoryOf, getItem } from '../src/data/catalog.js';
 import { cameraSupported, captureFrame, describeCameraError, startCamera, stopCamera } from './camera.js';
 import { categoryIcon, icon } from './icons.js';
+import {
+  db,
+  getAccessToken,
+  getUser,
+  isConfigured,
+  loadSession,
+  recognizeUrl,
+  signIn,
+  signOut,
+  signUp,
+} from './supabase.js';
 import {
   analyseBundle,
   analyseDepreciation,
@@ -27,6 +38,8 @@ import {
   priceItem,
   rankMarketplaces,
   recognizeWithVision,
+  RETAKE_GUIDANCE,
+  UnusablePhotoError,
   scoreListing,
   sellOrDonate,
   seasonalityCurve,
@@ -48,32 +61,30 @@ const defaultState = () => ({
   plan: 'free',
   scansToday: 0,
   scanDay: today(),
-  inventory: seedInventory(),
+  inventory: [],
   current: null,
   garage: { active: false, scanned: [] },
+  /** Which auth screen to show when signed out. Not persisted — it is a UI mode, not data. */
+  authView: 'signin',
   chat: [],
   selection: [],
-  prefs: { priority: 'balanced', tone: 'professional', notifications: true, useVisionAI: false },
+  prefs: { priority: 'balanced', tone: 'professional', notifications: true },
 });
 
 let state = load();
 let toastTimer = null;
 
 /**
- * The user's own Anthropic API key, for the optional real-AI-recognition path.
+ * The signed-in Supabase session, restored on load.
  *
- * Session storage only, never `state` — the same reasoning as `pendingPhoto` below, except the
- * risk here is a leaked credential rather than a blown quota. `save()` serialises the whole state
- * object to localStorage, which persists indefinitely and can sync across devices; keeping the
- * key out of it means it never outlives this browser tab.
+ * There is no longer an API key anywhere in this file. Recognition goes through the `recognize`
+ * edge function, which holds the key server-side and checks this session before spending it —
+ * so the credential the browser carries authorises the *user*, not the model.
  */
-const VISION_KEY_STORAGE = 'resellai.visionApiKey';
-let visionApiKey = '';
-try {
-  visionApiKey = sessionStorage.getItem(VISION_KEY_STORAGE) ?? '';
-} catch {
-  /* private browsing — the key just won't survive a refresh */
-}
+loadSession();
+
+/** Why the last photo could not be identified, when the model asked for a retake. */
+let retake = null;
 
 /**
  * Uploaded photos, keyed by scan seed or inventory uid.
@@ -125,26 +136,91 @@ function today() {
   return new Date().toDateString();
 }
 
+/**
+ * Local state at startup.
+ *
+ * Inventory no longer lives here — it is per-user and comes from the database in `hydrate()`.
+ * What remains in localStorage is device-scoped preference: the theme, the chosen tone, the
+ * marketplace priority. Those are properties of *this browser*, not of the account, and syncing
+ * them would make one person's phone change another's laptop.
+ */
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
 
-    const restored = { ...defaultState(), ...JSON.parse(raw), view: 'home', current: null };
-    // `prefs` is nested, so the spread above replaces it wholesale with whatever was saved —
-    // a pref field added after a user's first save would otherwise never reach their state.
-    restored.prefs = { ...defaultState().prefs, ...restored.prefs };
-
-    // The free plan grants five scans *a day*. Without this the persisted counter would make it
-    // a lifetime limit, permanently gating the app after the fifth scan.
-    if (restored.scanDay !== today()) {
-      restored.scanDay = today();
-      restored.scansToday = 0;
-    }
+    const saved = JSON.parse(raw);
+    const restored = {
+      ...defaultState(),
+      theme: saved.theme ?? null,
+      authView: 'signin',
+      prefs: { ...defaultState().prefs, ...(saved.prefs ?? {}) },
+      view: 'home',
+      current: null,
+    };
     return restored;
   } catch {
     return defaultState();
   }
+}
+
+/**
+ * Load the signed-in user's inventory.
+ *
+ * Row-level security scopes the query to the caller, so this returns exactly one person's items
+ * with no user id in the request — the database decides, not the client.
+ */
+async function hydrate() {
+  if (!getUser()) return;
+  try {
+    const [rows, scans] = await Promise.all([db.listItems(), db.scansToday()]);
+    state.inventory = (rows ?? []).map(rowToEntry);
+    state.scansToday = (scans ?? []).length;
+    state.scanDay = today();
+  } catch (error) {
+    toast(`Could not load your inventory — ${error.message}`);
+  }
+}
+
+/** A database row as the app's in-memory inventory entry. */
+function rowToEntry(row) {
+  return {
+    uid: row.id,
+    itemId: row.item_id ?? null,
+    item: row.item ?? null,
+    condition: row.condition,
+    accessories: row.accessories ?? [],
+    price: row.price,
+    status: row.status,
+    soldFor: row.sold_for,
+    room: row.room,
+    listedOn: row.listed_on ?? [],
+    purchasePrice: row.purchase_price,
+    purchaseDate: row.purchase_date,
+    date: new Date(row.created_at).getTime(),
+  };
+}
+
+/** An inventory entry as a database row. */
+function entryToRow(entry) {
+  return {
+    // A catalog item is stored by id so it picks up future comp updates; an estimated item is
+    // stored whole, because nothing else in the system knows it exists.
+    item_id: entry.item?.estimated ? null : (entry.itemId ?? null),
+    item: entry.item?.estimated ? entry.item : null,
+    name: entry.item?.name ?? getItem(entry.itemId)?.name ?? 'Item',
+    brand: entry.item?.brand ?? null,
+    category: entry.item?.category ?? null,
+    condition: entry.condition,
+    accessories: entry.accessories ?? [],
+    price: entry.price ?? null,
+    status: entry.status,
+    sold_for: entry.soldFor ?? null,
+    room: entry.room,
+    listed_on: entry.listedOn ?? [],
+    purchase_price: entry.purchasePrice ?? null,
+    purchase_date: entry.purchaseDate ?? null,
+  };
 }
 
 /** Count a scan against today's allowance, rolling over if the day changed mid-session. */
@@ -156,42 +232,16 @@ function recordScan() {
   state.scansToday += 1;
 }
 
+/** Persist the device-scoped preferences. Inventory is written through `db` as it changes. */
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, current: null }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ theme: state.theme, prefs: state.prefs }),
+    );
   } catch {
-    /* private browsing — the prototype still works, it just will not persist */
+    /* private browsing — preferences just will not survive a refresh */
   }
-}
-
-/** A little history so the dashboards have something to show on first run. */
-function seedInventory() {
-  const seeds = [
-    ['airpods-pro-2', 'excellent', 'sold', 168, 22],
-    ['lululemon-define', 'very-good', 'sold', 72, 40],
-    ['dewalt-drill', 'good', 'sold', 85, 61],
-    ['lego-millennium', 'like-new', 'listed', 145, 6],
-    ['instant-pot-duo', 'good', 'scanned', null, 3],
-    ['trek-marlin-5', 'very-good', 'listed', 320, 11],
-    ['charizard-base', 'excellent', 'scanned', null, 1],
-  ];
-
-  return seeds.map(([itemId, condition, status, soldFor, daysAgo], index) => {
-    const item = getItem(itemId);
-    const pricing = priceItem(item, { condition });
-    return {
-      uid: `seed-${index}`,
-      itemId,
-      condition,
-      accessories: item.accessories ?? [],
-      price: pricing.prices.fair,
-      status,
-      soldFor,
-      room: categoryOf(item).room,
-      listedOn: status === 'scanned' ? [] : ['ebay'],
-      date: Date.now() - daysAgo * 86400000,
-    };
-  });
 }
 
 // ---------------------------------------------------------------- helpers
@@ -249,7 +299,9 @@ const scansLeft = () => Math.max(0, FREE_SCAN_LIMIT - state.scansToday);
 
 /** An inventory row joined to its catalog item and freshly recalculated pricing. */
 function inventoryEntry(entry) {
-  const item = getItem(entry.itemId);
+  // An estimated item exists only in the row that recorded it — there is no catalog entry to
+  // look up, so the snapshot taken at scan time is the item.
+  const item = entry.item ?? getItem(entry.itemId);
   const pricing = priceItem(item, { condition: entry.condition, includedAccessories: entry.accessories });
   return { ...entry, item, pricing };
 }
@@ -307,7 +359,20 @@ function render() {
     bundle: viewBundle,
     negotiate: viewNegotiate,
     camera: viewCamera,
+    retake: viewRetake,
   };
+
+  // The auth gate. Every screen below this line assumes a user, because every row it reads is
+  // scoped to one — an unauthenticated render would query for another person's inventory and
+  // correctly get nothing back, which looks like data loss rather than a missing sign-in.
+  if (!getUser()) {
+    const screenEl = $('#screen');
+    screenEl.innerHTML = `<div class="view">${state.authView === 'signup' ? viewSignUp() : viewSignIn()}</div>`;
+    screenEl.scrollTop = 0;
+    $('#tabbar').innerHTML = '';
+    closeCamera();
+    return;
+  }
 
   const screen = $('#screen');
   screen.innerHTML = `<div class="view">${(views[state.view] ?? viewHome)()}</div>`;
@@ -320,6 +385,131 @@ function render() {
   // device — and a navigation path added later cannot forget to.
   if (state.view === 'camera') attachCamera();
   else closeCamera();
+}
+
+/* ---------------------------------------------------------------- auth */
+
+/**
+ * Sign-in and sign-up.
+ *
+ * One shared shell with two modes rather than two screens: the fields are identical, and a
+ * person who lands on the wrong one should be able to switch without losing what they typed.
+ */
+function authShell(mode) {
+  const signup = mode === 'signup';
+  const configured = isConfigured();
+
+  return `
+    <div style="padding:44px 0 24px;">
+      <div class="row" style="gap:10px;">
+        <span class="scan-lens" style="background:var(--indigo);">${icon('camera', 22)}</span>
+        <h1 style="font-size:26px;">ResellAI</h1>
+      </div>
+      <p class="sub" style="margin-top:10px;">
+        Point your camera at anything you own and find out what it is worth.
+      </p>
+    </div>
+
+    ${configured ? '' : `
+      <div class="banner banner-amber" style="margin-bottom:16px;">
+        <strong>No backend configured.</strong> This build was made without
+        <code>SUPABASE_URL</code>, so accounts and recognition are unavailable.
+      </div>
+    `}
+
+    <div class="card">
+      <h2 style="margin-bottom:14px;">${signup ? 'Create your account' : 'Sign in'}</h2>
+
+      <form id="auth-form" class="stack" autocomplete="on">
+        <label class="tiny" for="auth-email">Email</label>
+        <input type="email" id="auth-email" name="email" required autocomplete="email"
+          placeholder="you@example.com" ${configured ? '' : 'disabled'} />
+
+        <label class="tiny" for="auth-password" style="margin-top:6px;">Password</label>
+        <input type="password" id="auth-password" name="password" required
+          autocomplete="${signup ? 'new-password' : 'current-password'}"
+          minlength="8" placeholder="${signup ? 'At least 8 characters' : ''}"
+          ${configured ? '' : 'disabled'} />
+
+        <p class="tiny" id="auth-error" role="alert" style="color:var(--loss);min-height:0;"></p>
+
+        <button type="submit" class="btn btn-block" id="auth-submit" ${configured ? '' : 'disabled'}>
+          ${signup ? 'Create account' : 'Sign in'}
+        </button>
+      </form>
+
+      <div class="divider"></div>
+
+      <p class="tiny" style="text-align:center;">
+        ${signup ? 'Already have an account?' : 'New here?'}
+        <button class="link" data-act="auth-mode" data-arg="${signup ? 'signin' : 'signup'}"
+          style="background:none;border:none;padding:0;color:var(--indigo);font-weight:600;">
+          ${signup ? 'Sign in' : 'Create one'}
+        </button>
+      </p>
+    </div>
+
+    <p class="tiny" style="margin-top:16px;text-align:center;">
+      Your inventory is private to your account. Photos are analysed to identify the item and
+      are not stored on our servers.
+    </p>
+  `;
+}
+
+function viewSignIn() {
+  return authShell('signin');
+}
+
+function viewSignUp() {
+  return authShell('signup');
+}
+
+/**
+ * The retake screen.
+ *
+ * Shown when the model judged the photo too poor to identify anything, instead of returning a
+ * confident guess. This is the screen that makes "it does not know" a useful outcome rather
+ * than a dead end: every reason carries the specific fix for it.
+ */
+function viewRetake() {
+  const lines = retake?.guidance ?? [];
+
+  return `
+    <div class="row-between" style="margin: 10px 0 14px;">
+      <button class="btn btn-quiet btn-sm" data-act="go" data-arg="scan">‹ Back</button>
+    </div>
+
+    <h1>Try that photo again</h1>
+    <p class="sub" style="margin-top:6px;">
+      The photo was not clear enough to identify the item. Guessing here would price the wrong
+      thing, so here is what to fix.
+    </p>
+
+    ${retake?.photo ? `
+      <div class="viewfinder" style="margin-top:16px;height:200px;">
+        <img src="${retake.photo}" alt="" style="width:100%;height:100%;object-fit:cover;opacity:0.55;" />
+      </div>
+    ` : ''}
+
+    <div class="card" style="margin-top:16px;">
+      ${lines.map((line) => `
+        <div class="item-row">
+          <span class="thumb">${icon('camera', 20)}</span>
+          <span class="grow"><span class="name">${esc(line)}</span></span>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="stack" style="margin-top:16px;">
+      ${cameraSupported()
+        ? '<button class="btn btn-block" data-act="camera">Retake the photo</button>'
+        : ''}
+      <label class="btn btn-ghost btn-block" style="cursor:pointer;justify-content:center;">
+        Upload a different photo
+        <input type="file" class="sr-only" accept="image/*" multiple data-act="photos" />
+      </label>
+    </div>
+  `;
 }
 
 const TABS = [
@@ -488,9 +678,7 @@ function viewCamera() {
   return `
     <div class="row-between" style="margin: 8px 0 14px;">
       <button class="btn btn-quiet btn-sm" data-act="go" data-arg="scan">‹ Back</button>
-      ${state.prefs.useVisionAI && visionApiKey
-        ? '<span class="pill pill-emerald">AI recognition on</span>'
-        : '<span class="pill pill-indigo">Simulated recognition</span>'}
+      <span class="pill pill-emerald">AI recognition</span>
     </div>
 
     <h1>Take a photo</h1>
@@ -599,26 +787,14 @@ function viewScan() {
       </div>
     ` : `
       <div class="banner banner-indigo" style="margin-top:14px;">
-        ${state.prefs.useVisionAI && visionApiKey
-          ? 'Real AI recognition is on, so a photo you take or upload is genuinely identified. Picking a sample below stays simulated — there is no photo to look at.'
-          : 'Picking a sample below gives a simulated recognition result. Every other number on the next screen is computed for real, and you can switch on real AI recognition in Profile.'}
+        Photograph the item and it is identified for real. If the photo is too dark, blurry, or
+        crowded to be sure, you will be told what to fix rather than given a guess.
       </div>
     `}
 
-    <div class="section-head"><h2>Try a sample</h2>
+    <div class="section-head"><h2>Scan an item</h2>
       ${isPro() ? '' : `<span class="tiny">${scansLeft()} scan${scansLeft() === 1 ? '' : 's'} left today</span>`}
     </div>
-
-    <div class="sample-grid">
-      ${CATALOG.map((item) => `
-        <button class="sample" data-act="scan" data-arg="${item.id}" ${gated ? 'disabled' : ''}>
-          <span class="g">${iconFor(item, 20)}</span>
-          <span class="l">${esc(shortName(item))}</span>
-        </button>
-      `).join('')}
-    </div>
-
-    <div class="section-head"><h2>Other ways in</h2></div>
     <div class="card">
       ${cameraSupported() ? `
         <button class="item-row" data-act="camera" ${gated ? 'disabled' : ''}>
@@ -639,11 +815,6 @@ function viewScan() {
         <span class="chev">${icon('chevron', 15)}</span>
         <input type="file" class="sr-only" accept="image/*" multiple data-act="photos" ${gated ? 'disabled' : ''} />
       </label>
-      <button class="item-row" data-act="scan-random" ${gated ? 'disabled' : ''}>
-        <span class="thumb">${icon('spark', 22)}</span>
-        <span class="grow col"><span class="name">Surprise me</span><span class="tiny">Scan a random item</span></span>
-        <span class="chev">${icon('chevron', 15)}</span>
-      </button>
       <button class="item-row" data-act="barcode">
         <span class="thumb">${icon('barcode', 22)}</span>
         <span class="grow col"><span class="name">Barcode or serial</span><span class="tiny">UPC, QR, ISBN, serial number</span></span>
@@ -656,17 +827,6 @@ function viewScan() {
       </button>
     </div>
   `;
-}
-
-/**
- * The name as it appears on a sample tile.
- *
- * Slicing at a fixed character count is what produced "AirPods Pro (2nd generat…" — a cut mid-word
- * and mid-parenthesis. Trim the parenthetical, which is always the least useful part of a product
- * name at tile size, and let the two-line clamp in styles.css end the rest at a line boundary.
- */
-function shortName(item) {
-  return item.name.replace(/\s*\([^)]*\)\s*$/, '');
 }
 
 function viewAnalysing() {
@@ -701,50 +861,67 @@ function viewAnalysing() {
 }
 
 /**
- * @param {string} [itemId]  Force a catalog item; omit to let the seed decide.
- * @param {object} [options]
- * @param {string[]} [options.photos]  Data URLs of photos the user actually uploaded.
- * @param {string} [options.seed]      Stable seed, normally derived from the photo files.
+ * Identify a photo, then price what came back.
+ *
+ * Recognition is real and server-side now, so this has exactly one input: photos. The old
+ * `itemId` path existed to drive the sample gallery and "surprise me", which showed the app
+ * pricing a catalog entry the user never photographed — impressive-looking and worth nothing.
+ *
+ * Three outcomes, and the middle one is the point of the rewrite:
+ *   - identified, so price it;
+ *   - too poor a photo to identify, so say exactly what to fix and price nothing;
+ *   - the request failed, so report why rather than silently substituting a guess.
+ *
+ * @param {object} options
+ * @param {string[]} options.photos  Data URLs of the photos to analyse.
+ * @param {string} [options.seed]    Stable key for the photo store.
  */
-function startScan(itemId, options = {}) {
+function startScan({ photos = [], seed = `scan-${Date.now()}` } = {}) {
+  if (!photos.length) {
+    toast('Take or upload a photo to scan.');
+    return;
+  }
   if (!isPro() && scansLeft() === 0) {
     toast('Daily scan limit reached — upgrade for unlimited scans.');
     return;
   }
 
-  const { photos = [], seed = `${itemId}-${Date.now()}` } = options;
-  const item = itemId ? getItem(itemId) : null;
-
-  // The category id rather than the drawn icon: this is persisted state, and markup does not
-  // belong in localStorage.
-  state.pendingIcon = item?.category ?? null;
   pendingPhoto = photos[0] ?? null;
+  state.pendingIcon = null;
   state.view = 'analysing';
   render();
 
-  // Reveal the analysis steps in sequence, then show the result.
   const steps = [...document.querySelectorAll('.step')];
   steps.forEach((step, i) => setTimeout(() => step.classList.add('on'), 180 + i * 240));
 
-  setTimeout(async () => {
-    const photoCount = photos.length || 3;
+  (async () => {
+    const photoCount = photos.length;
     let recognition;
 
-    // Real recognition only makes sense against an actual uploaded photo, never the sample
-    // gallery or "surprise me" (there's no photo for the model to look at in those cases).
-    if (!itemId && photos.length && state.prefs.useVisionAI && visionApiKey) {
-      try {
-        recognition = await recognizeWithVision({ apiKey: visionApiKey, photos, seed, photoCount });
-      } catch (error) {
-        toast(`Real AI recognition failed, used the built-in simulator instead — ${error.message}`);
+    try {
+      recognition = await recognizeWithVision({
+        functionUrl: recognizeUrl(),
+        accessToken: getAccessToken(),
+        photos,
+        seed,
+        photoCount,
+      });
+    } catch (error) {
+      // A photo the model could not read is a normal outcome with a specific remedy, not a
+      // failure to apologise for — it gets its own screen rather than a toast.
+      if (error instanceof UnusablePhotoError) {
+        retake = { guidance: error.guidance, reasons: error.reasons, photo: photos[0] ?? null };
+        state.view = 'retake';
+        render();
+        return;
       }
+      toast(error.message);
+      state.view = 'scan';
+      render();
+      return;
     }
 
-    if (!recognition) {
-      recognition = analysePhoto({ seed, itemId: itemId ?? undefined, photoCount });
-    }
-
-    if (photos.length) photoStore.set(seed, photos);
+    photoStore.set(seed, photos);
 
     state.current = {
       recognition,
@@ -771,7 +948,7 @@ function startScan(itemId, options = {}) {
 
     save();
     render();
-  }, 180 + steps.length * 240 + 320);
+  })();
 }
 
 // ---------------------------------------------------------------- result
@@ -865,7 +1042,9 @@ function viewResult() {
     ` : ''}
 
     <div class="section-head"><h2>What it is worth</h2>
-      <span class="tiny">${pricing.compCount} recent sales</span>
+      <span class="tiny">${recognition.estimated
+        ? 'AI estimate'
+        : `${pricing.compCount} recent sales`}</span>
     </div>
     <div class="ladder">
       ${[
@@ -879,10 +1058,18 @@ function viewResult() {
         </button>
       `).join('')}
     </div>
-    <p class="tiny" style="margin-top:10px;">
-      Average sold price ${money(pricing.averageSold)} · pricing confidence ${pct(pricing.confidence)}
-      ${pricing.retainedValue ? ` · holds ${pct(pricing.retainedValue)} of its ${money(item.msrp)} retail price` : ''}
-    </p>
+    ${recognition.estimated ? `
+      <div class="banner banner-amber" style="margin-top:10px;">
+        <strong>This is an estimate, not sold history.</strong>
+        ResellAI has no recorded sales for this item, so the range above is the AI's own valuation
+        from the photo. Treat it as a starting point and check a live marketplace before you list.
+      </div>
+    ` : `
+      <p class="tiny" style="margin-top:10px;">
+        Average sold price ${money(pricing.averageSold)} · pricing confidence ${pct(pricing.confidence)}
+        ${pricing.retainedValue ? ` · holds ${pct(pricing.retainedValue)} of its ${money(item.msrp)} retail price` : ''}
+      </p>
+    `}
 
     ${notes.length ? `
       <div class="card" style="margin-top:12px;">
@@ -1547,42 +1734,31 @@ function viewProfile() {
     <div class="card">
       <div class="row-between" style="padding:9px 0;">
         <span class="col">
-          <span style="font-weight:600;font-size:14.5px;">Use real AI recognition</span>
-          <span class="tiny">Sends your photo to Claude instead of the built-in simulator</span>
+          <span style="font-weight:600;font-size:14.5px;">Signed in</span>
+          <span class="tiny">${esc(getUser()?.email ?? '')}</span>
         </span>
-        <button class="switch" data-act="toggle-vision-ai" aria-checked="${state.prefs.useVisionAI}" role="switch" aria-label="Use real AI recognition"></button>
       </div>
-      ${state.prefs.useVisionAI ? `
-        <div class="divider"></div>
-        <div class="col" style="gap:8px;padding:9px 0;">
-          <span class="tiny">
-            Bring your own Anthropic API key. It is sent directly from this browser to Anthropic's
-            API and kept only in this tab's session storage — never saved to disk or synced across
-            devices. Anyone with access to this browser tab could read it, so don't use a
-            production key.
-          </span>
-          <div class="row" style="gap:8px;">
-            <input type="password" id="vision-api-key" class="grow" placeholder="sk-ant-..." autocomplete="off" />
-            <button class="btn btn-sm" data-act="save-vision-key">Save</button>
-          </div>
-          <span class="tiny">
-            ${visionApiKey ? 'Key saved for this tab.' : 'No key set — scans fall back to simulated recognition.'}
-            ${visionApiKey ? '<button class="link" data-act="clear-vision-key" style="margin-left:8px;">Remove</button>' : ''}
-          </span>
-        </div>
-      ` : ''}
+      <div class="divider"></div>
+      <div class="row-between" style="padding:9px 0;">
+        <span class="col">
+          <span style="font-weight:600;font-size:14.5px;">Scans today</span>
+          <span class="tiny">Resets at midnight UTC</span>
+        </span>
+        <span class="num" style="font-weight:600;">${state.scansToday}</span>
+      </div>
     </div>
 
-    <div class="section-head"><h2>About this prototype</h2></div>
+    <div class="section-head"><h2>How this works</h2></div>
     <div class="banner banner-indigo">
-      Item recognition is simulated by default — there is no vision model behind the camera unless
-      you turn on real AI recognition above with your own API key. Everything downstream is real:
-      pricing, fees, shipping, marketplace ranking, and listing copy are all computed by the
-      engines in <code>src/engine/</code>, which are covered by unit tests.
+      Photos are identified by Claude on the server, so nothing is simulated and no API key is
+      needed. When your item matches one of the catalog entries with real sold-price history, it
+      is priced against that history; otherwise the price is the model's own estimate, and every
+      screen that shows one says so. Fees, shipping, marketplace ranking, and listing copy are
+      computed by the engines in <code>src/engine/</code>, which are covered by unit tests.
     </div>
 
     <div style="margin-top:14px;">
-      <button class="btn btn-quiet btn-block" data-act="reset">Reset prototype data</button>
+      <button class="btn btn-quiet btn-block" data-act="sign-out">Sign out</button>
     </div>
   `;
 }
@@ -1668,7 +1844,12 @@ function answer(question) {
   }
 
   if (q.includes('price') || q.includes('much')) {
-    return `Recent sold prices average ${money(pricing.averageSold)}. In ${getCondition(current.condition).label.toLowerCase()} condition, ask ${money(pricing.prices.fair)} for a normal sale, ${money(pricing.prices.quick)} if you want it gone this week, or ${money(pricing.prices.patient)} if you can wait. Confidence is ${pct(pricing.confidence)} based on ${pricing.compCount} comparable sales.`;
+    const ask = `In ${getCondition(current.condition).label.toLowerCase()} condition, ask ${money(pricing.prices.fair)} for a normal sale, ${money(pricing.prices.quick)} if you want it gone this week, or ${money(pricing.prices.patient)} if you can wait.`;
+    // The assistant must not claim sold history for a number the model estimated — the chat is
+    // the surface most likely to be quoted back as fact.
+    return current.recognition.estimated
+      ? `I have no recorded sales for this one, so this is my own estimate from the photo rather than comparable sales. ${ask} Worth checking a live marketplace before you commit.`
+      : `Recent sold prices average ${money(pricing.averageSold)}. ${ask} Confidence is ${pct(pricing.confidence)} based on ${pricing.compCount} comparable sales.`;
   }
 
   if (q.includes('bundle')) {
@@ -1688,10 +1869,18 @@ const actions = {
     render();
   },
 
-  scan(arg) { startScan(arg); },
 
-  'scan-random'() {
-    startScan(CATALOG[Math.floor(Math.random() * CATALOG.length)].id);
+  'auth-mode'(arg) {
+    state.authView = arg === 'signup' ? 'signup' : 'signin';
+    render();
+  },
+
+  'sign-out'() {
+    signOut();
+    state = defaultState();
+    retake = null;
+    photoStore.clear();
+    render();
   },
 
   camera() {
@@ -1718,38 +1907,50 @@ const actions = {
     }
 
     // startScan renders the analysing view, and render() releases the camera on the way out.
-    startScan(undefined, { photos: [photo], seed: `camera-${Date.now()}` });
+    startScan({ photos: [photo], seed: `camera-${Date.now()}` });
   },
 
   'garage-scan'() {
     state.garage.active = true;
-    startScan(CATALOG[Math.floor(Math.random() * CATALOG.length)].id);
+    if (!isPro() && scansLeft() === 0) {
+      toast('Daily scan limit reached — upgrade for unlimited scans.');
+      return;
+    }
+    state.view = cameraSupported() ? 'camera' : 'scan';
+    render();
   },
 
-  'garage-save'() {
+  async 'garage-save'() {
     const scanned = state.garage.scanned ?? [];
     if (!scanned.length) return;
 
-    for (const entry of scanned) {
-      const item = getItem(entry.itemId);
-      state.inventory.push({
-        uid: `g-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        itemId: entry.itemId,
-        condition: entry.condition,
+    for (const scan of scanned) {
+      const item = scan.item ?? getItem(scan.itemId);
+      if (!item) continue;
+      const entry = {
+        itemId: item.id,
+        item,
+        condition: scan.condition,
         accessories: item.accessories ?? [],
-        price: entry.value,
+        price: scan.value,
         status: 'scanned',
         soldFor: null,
         room: categoryOf(item).room,
         listedOn: [],
         date: Date.now(),
-      });
+      };
+      try {
+        const [row] = (await db.insertItem(entryToRow(entry))) ?? [];
+        entry.uid = row?.id ?? `local-${Date.now()}`;
+        state.inventory.unshift(entry);
+      } catch (error) {
+        toast(`Could not save ${item.name} — ${error.message}`);
+      }
     }
 
     toast(`${scanned.length} items saved to inventory`);
     state.garage = { active: false, scanned: [] };
     state.view = 'inventory';
-    save();
     render();
   },
 
@@ -1830,26 +2031,24 @@ const actions = {
     );
   },
 
-  publish() {
+  async publish() {
     const targets = state.current.targets ?? [];
     if (!targets.length) {
       toast('Pick at least one marketplace to publish to.');
       return;
     }
 
-    saveCurrent('listed', targets);
+    if (!(await saveCurrent('listed', targets))) return;
     const names = targets.map((id) => getMarketplace(id)?.name ?? id).join(', ');
     toast(`Published to ${names}`);
     state.view = 'inventory';
-    save();
     render();
   },
 
-  'save-item'() {
-    saveCurrent('scanned', []);
+  async 'save-item'() {
+    if (!(await saveCurrent('scanned', []))) return;
     toast('Saved to inventory');
     state.view = 'inventory';
-    save();
     render();
   },
 
@@ -1876,25 +2075,45 @@ const actions = {
 
   'inv-filter'(arg) { state.invFilter = arg; render(); },
 
-  'mark-sold'(arg) {
+  async 'mark-sold'(arg) {
     const entry = state.inventory.find((e) => e.uid === arg);
     if (!entry) return;
     const enriched = inventoryEntry(entry);
+    const soldFor = enriched.pricing.prices.fair;
+
+    // The local entry is updated first so the sheet closes instantly, then written through. On
+    // a failed write it is rolled back rather than left showing a sale the database never got.
+    const previous = { status: entry.status, soldFor: entry.soldFor };
     entry.status = 'sold';
-    entry.soldFor = enriched.pricing.prices.fair;
+    entry.soldFor = soldFor;
     closeSheet();
-    toast(`Marked sold for ${money(entry.soldFor)}`);
-    save();
     render();
+
+    try {
+      await db.updateItem(entry.uid, { status: 'sold', sold_for: soldFor });
+      toast(`Marked sold for ${money(soldFor)}`);
+    } catch (error) {
+      Object.assign(entry, previous);
+      toast(`Could not save that — ${error.message}`);
+      render();
+    }
   },
 
-  'archive-item'(arg) {
+  async 'archive-item'(arg) {
+    const entry = state.inventory.find((e) => e.uid === arg);
     state.inventory = state.inventory.filter((e) => e.uid !== arg);
     state.selection = (state.selection ?? []).filter((uid) => uid !== arg);
     closeSheet();
-    toast('Removed from inventory');
-    save();
     render();
+
+    try {
+      await db.deleteItem(arg);
+      toast('Removed from inventory');
+    } catch (error) {
+      if (entry) state.inventory.unshift(entry);
+      toast(`Could not remove that — ${error.message}`);
+      render();
+    }
   },
 
   theme() {
@@ -1913,38 +2132,8 @@ const actions = {
   priority(arg) { state.prefs.priority = arg; save(); render(); },
   'default-tone'(arg) { state.prefs.tone = arg; save(); render(); },
 
-  'toggle-vision-ai'() {
-    state.prefs.useVisionAI = !state.prefs.useVisionAI;
-    save();
-    render();
-  },
 
-  'save-vision-key'() {
-    const value = ($('#vision-api-key')?.value ?? '').trim();
-    if (!value) {
-      toast('Enter an API key first.');
-      return;
-    }
-    visionApiKey = value;
-    try {
-      sessionStorage.setItem(VISION_KEY_STORAGE, value);
-    } catch {
-      /* private browsing — the key still works for this render, just won't survive a refresh */
-    }
-    toast('Key saved for this browser tab.');
-    render();
-  },
 
-  'clear-vision-key'() {
-    visionApiKey = '';
-    try {
-      sessionStorage.removeItem(VISION_KEY_STORAGE);
-    } catch {
-      /* nothing to clear */
-    }
-    toast('Key removed.');
-    render();
-  },
 
   upgrade() {
     state.plan = isPro() ? 'free' : 'pro';
@@ -2040,8 +2229,10 @@ const actions = {
     state.negotiation = null;
     state.view = 'inventory';
     toast(`Sold for ${money(Number(arg))}`);
-    save();
     render();
+    db.updateItem(entry.uid, { status: 'sold', sold_for: Number(arg) }).catch((error) =>
+      toast(`Could not save that — ${error.message}`),
+    );
   },
 
   'export-csv'() {
@@ -2070,29 +2261,24 @@ const actions = {
     toast(`Exported ${rows.length} items`);
   },
 
-  reset() {
-    localStorage.removeItem(STORAGE_KEY);
-    state = defaultState();
-    toast('Prototype data reset');
-    render();
-  },
 
   'close-sheet'() { closeSheet(); },
 };
 
-/** Commits the active scan to inventory, carrying any uploaded photos across. */
-function saveCurrent(status, targets) {
+/**
+ * Commits the active scan to the signed-in user's inventory.
+ *
+ * Written to the database, not to a local array: the row is the record, and the in-memory entry
+ * is a view of it. The insert returns the server-assigned id, which becomes the entry's uid so
+ * later edits address the same row.
+ */
+async function saveCurrent(status, targets) {
   const { recognition, condition, accessories, tier, room, photoKey } = state.current;
   const pricing = currentPricing();
-  const uid = `i-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-  // Re-key any uploaded photos to the inventory entry so its thumbnail keeps them.
-  const photos = photosFor(photoKey);
-  if (photos.length) photoStore.set(uid, photos);
-
-  state.inventory.push({
-    uid,
+  const entry = {
     itemId: recognition.item.id,
+    item: recognition.item,
     condition,
     accessories: [...accessories],
     price: pricing.prices[tier],
@@ -2101,7 +2287,23 @@ function saveCurrent(status, targets) {
     room,
     listedOn: targets,
     date: Date.now(),
-  });
+  };
+
+  try {
+    const [row] = (await db.insertItem(entryToRow(entry))) ?? [];
+    entry.uid = row?.id ?? `local-${Date.now()}`;
+  } catch (error) {
+    toast(`Could not save that item — ${error.message}`);
+    return null;
+  }
+
+  // Re-key any uploaded photos to the saved entry so its thumbnail keeps them. Photos are held
+  // in memory only, so this has to happen after the id is known.
+  const photos = photosFor(photoKey);
+  if (photos.length) photoStore.set(entry.uid, photos);
+
+  state.inventory.unshift(entry);
+  return entry;
 }
 
 // ---------------------------------------------------------------- item sheet
@@ -2370,9 +2572,63 @@ document.addEventListener('change', (event) => {
         }),
     ),
   ).then(
-    (photos) => startScan(undefined, { photos, seed }),
+    (photos) => startScan({ photos, seed }),
     () => toast('Could not read those photos.'),
   );
+});
+
+document.addEventListener('submit', async (event) => {
+  const form = event.target.closest('#auth-form');
+  if (!form) return;
+  event.preventDefault();
+
+  const email = form.querySelector('#auth-email')?.value.trim() ?? '';
+  const password = form.querySelector('#auth-password')?.value ?? '';
+  const errorEl = form.querySelector('#auth-error');
+  const submitEl = form.querySelector('#auth-submit');
+  const signup = state.authView === 'signup';
+
+  if (errorEl) errorEl.textContent = '';
+  if (submitEl) {
+    submitEl.disabled = true;
+    submitEl.textContent = signup ? 'Creating account…' : 'Signing in…';
+  }
+
+  try {
+    if (signup) {
+      const outcome = await signUp(email, password);
+      if (outcome.confirmationRequired) {
+        // Email confirmation is a project setting, so the app cannot know in advance whether it
+        // is on. Say what happened rather than leaving the user on a form that appeared to fail.
+        if (errorEl) {
+          errorEl.style.color = 'var(--muted)';
+          errorEl.textContent = `Check ${outcome.email} for a confirmation link, then sign in.`;
+        }
+        state.authView = 'signin';
+        if (submitEl) {
+          submitEl.disabled = false;
+          submitEl.textContent = 'Create account';
+        }
+        return;
+      }
+    } else {
+      await signIn(email, password);
+    }
+  } catch (error) {
+    if (errorEl) {
+      errorEl.style.color = 'var(--loss)';
+      errorEl.textContent = error.message;
+    }
+    if (submitEl) {
+      submitEl.disabled = false;
+      submitEl.textContent = signup ? 'Create account' : 'Sign in';
+    }
+    return;
+  }
+
+  await hydrate();
+  state.view = 'home';
+  render();
 });
 
 document.addEventListener('click', (event) => {
@@ -2403,4 +2659,8 @@ if (state.theme) document.documentElement.dataset.theme = state.theme;
 
 tick();
 setInterval(tick, 20000);
+
+// Paint the signed-in shell immediately, then fill it with the user's rows. Waiting on the
+// network before the first render would show a blank screen to someone who is already signed in.
 render();
+if (getUser()) hydrate().then(render);

@@ -128,7 +128,29 @@ const ordered = [...modules.values()];
 if (ordered.some((module) => !module)) {
   throw new Error('Internal error: a module was never resolved');
 }
+// Backend config, injected from the environment rather than committed.
+//
+// Both values are public — the publishable key identifies the project and authorises nothing on
+// its own, since every table is guarded by row-level security keyed to the caller's JWT. They
+// are injected rather than hardcoded so the same source can build against a different project,
+// and so a fork does not silently point at this one's database.
+//
+// Declared as `const` at the top of the bundle: app/supabase.js reads them through a `typeof`
+// guard, which keeps `npm run serve` working from source with no build and no backend.
+const supabaseConfig = [
+  `const __SUPABASE_URL__ = ${JSON.stringify(process.env.SUPABASE_URL ?? '')};`,
+  `const __SUPABASE_ANON_KEY__ = ${JSON.stringify(process.env.SUPABASE_ANON_KEY ?? '')};`,
+].join('\n');
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+  console.warn(
+    'Warning: SUPABASE_URL / SUPABASE_ANON_KEY are unset, so this build has no backend.\n' +
+      '         Sign-in and recognition will be unavailable in it.',
+  );
+}
+
 const script = [
+  supabaseConfig,
   'const __m = {};',
   ...ordered.map(emit),
 ].join('\n\n');
